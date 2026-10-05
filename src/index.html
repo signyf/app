@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>天气小挂件</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="accent"></div>
+  <main class="widget">
+    <header class="titlebar">
+      <div class="place">
+        <div id="place-name" class="place-name">未选择地点</div>
+        <div id="place-detail" class="place-detail"></div>
+      </div>
+      <button id="search-toggle" class="ghost" type="button">换地点</button>
+      <button id="close-button" class="close-button" type="button" aria-label="关闭">×</button>
+    </header>
+
+    <section id="main-view" class="view">
+      <section class="weather">
+        <p id="weather-empty" class="weather-empty">选择地点后显示天气</p>
+        <div id="weather-data" class="weather-data" hidden>
+          <div class="temp-row">
+            <div class="temp">
+              <span id="temp-value">--</span><span class="unit">℃</span>
+            </div>
+            <div class="temp-side">
+              <div id="condition" class="condition">--</div>
+              <div id="stale-tag" class="stale-tag" hidden>上次数据</div>
+            </div>
+          </div>
+          <div class="metrics">
+            <span id="humidity" class="metric">湿度 --</span>
+            <span id="uv" class="metric">紫外线 --</span>
+          </div>
+          <p id="clothing" class="clothing"></p>
+        </div>
+      </section>
+
+      <hr class="rule" />
+
+      <section class="almanac">
+        <div class="date-row"><span class="date-label">新历</span><span id="gregorian"></span></div>
+        <div class="date-row"><span class="date-label">农历</span><span id="lunar"></span></div>
+        <div class="yiji">
+          <div class="yiji-row"><span class="tag yi">宜</span><span id="yi"></span></div>
+          <div class="yiji-row"><span class="tag ji">忌</span><span id="ji"></span></div>
+        </div>
+        <p id="festivals" class="festivals"></p>
+      </section>
+      <p id="status" class="status"></p>
+    </section>
+
+    <section id="search-view" class="view" hidden>
+      <form id="search-form" class="search-form">
+        <input id="search-input" type="text" maxlength="80" placeholder="输入城市或小区" aria-label="地点关键词" autocomplete="off" />
+        <button id="search-button" type="submit">搜索</button>
+      </form>
+      <p id="search-message" class="search-message"></p>
+      <div id="search-results" class="results"></div>
+      <button id="search-back" class="ghost back" type="button">返回</button>
+    </section>
+
+    <p class="credits">地点 © OpenStreetMap · 天气 Open-Meteo</p>
+  </main>
+  <script src="../dist/renderer.js"></script>
+</body>
+</html>
