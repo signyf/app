@@ -35,7 +35,7 @@ npm start
 npm run dist
 ```
 
-会先打包界面脚本，再用 electron-builder 生成 Windows zip，输出在 `release/`。把解压后的程序拷走即可运行，不需要再装 Node.js。这个包没有代码签名，图标用的是 Electron 默认图标。请在 Windows 上执行；当前配置关掉了需要 Wine 的可执行文件改写，因此在 Linux 上也可以打出同一个 zip。
+会先打包界面脚本，再用 electron-builder 生成一个免安装的 Windows 可执行文件 `release/tianqi-widget-1.0.0-portable.exe`。双击即可运行，不需要再装 Node.js。这个文件没有代码签名，图标用的是 Electron 默认图标。在 Windows 上直接执行即可；在 Linux 上交叉编译需要 Wine。
 
 ## 测试
 
