@@ -35,7 +35,7 @@ npm start
 npm run dist
 ```
 
-会先打包界面脚本，再用 electron-builder 生成一个免安装的 Windows 可执行文件 `release/tianqi-widget-1.1.0-portable.exe`。双击即可运行，不需要再装 Node.js。这个文件没有代码签名，图标用的是 Electron 默认图标。在 Windows 上直接执行即可；在 Linux 上交叉编译需要 Wine。
+会先打包界面脚本，再用 electron-builder 生成一个免安装的 Windows 可执行文件 `release/tianqi-widget-1.2.0-portable.exe`。双击即可运行，不需要再装 Node.js。这个文件没有代码签名，图标用的是 Electron 默认图标。在 Windows 上直接执行即可；在 Linux 上交叉编译需要 Wine。
 
 ## 测试
 
@@ -50,13 +50,13 @@ npm test
 ## 数据来源
 
 - 天气： [Open-Meteo](https://open-meteo.com/)（按经纬度取气温、湿度、天气现象和紫外线）
-- 地点搜索： [Nominatim](https://nominatim.org/) / © OpenStreetMap 贡献者
+- 地点搜索：先查 [Nominatim](https://nominatim.org/) / © OpenStreetMap 贡献者。这个地址在部分网络里会超时。没有结果或请求失败时，再查 [Open-Meteo Geocoding](https://open-meteo.com/en/docs/geocoding-api)（`language=zh`），仍没有匹配再查 [Photon](https://photon.komoot.io/)。都不需要 API key。
 - 农历、黄历宜忌、传统节日和法定节假日： [lunar-javascript](https://github.com/6tail/lunar-javascript)
 
 ## 已知限制
 
-- 小区能不能搜到，取决于 OpenStreetMap 有没有收录这个名字。有的小区只能对到同名公交站或道路，坐标大致还在那一片，足够看天气，但不是门牌级精度。重名时请看结果里的区县再选。
-- 搜索一次对应一次 Nominatim 请求。请不要连续猛点，公开服务有频率限制。
+- 小区能不能搜到，取决于这些公开地理数据有没有收录这个名字。有的小区只能对到同名公交站或道路，坐标大致还在那一片，足够看天气，但不是门牌级精度。重名时请看结果里的区县再选。
+- 每个地点来源单独计时。一个地址连不上会记下超时、DNS 或 HTTP 状态并改查下一个，不会把界面一直挂住。请不要连续猛点，公开服务有频率限制。
 - 法定节假日使用 lunar-javascript 自带年表。超出年表的年份，仍会显示传统农历节日，但当年的放假和调休可能缺失。
 - 黄历宜忌来自该库的传统历法数据，只作日常参考。
 - 天气服务短时不可用时，会显示上次成功的读数，并写明「天气获取失败 · 上次数据」。换了一个新地点又拉失败时，不会拿上一个地点的数据来充数。

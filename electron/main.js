@@ -7,7 +7,7 @@ const { initialPosition } = require("./placement");
 const { searchPlaces } = require("../src/lib/geocode");
 const { fetchWeatherPayload, resolveWeatherView, samePlace } = require("../src/lib/weather");
 
-const USER_AGENT = "tianqi-widget/1.1 (desktop weather widget)";
+const USER_AGENT = "tianqi-widget/1.2 (desktop weather widget)";
 
 function preloadPath() {
   const packed = path.join(__dirname, "preload.js");
@@ -48,7 +48,6 @@ function registerIpc(store) {
     try {
       const places = await searchPlaces(query, {
         userAgent: USER_AGENT,
-        signal: AbortSignal.timeout(12000),
       });
       if (!places.length) {
         return { ok: false, places: [], message: "没有结果" };

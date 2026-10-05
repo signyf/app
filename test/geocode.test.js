@@ -1,6 +1,15 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { buildSearchUrl, parseNominatimResults, searchPlaces } = require("../src/lib/geocode");
+const {
+  PROVIDER_TIMEOUT_MS,
+  buildOpenMeteoUrl,
+  buildPhotonUrl,
+  buildSearchUrl,
+  parseNominatimResults,
+  parseOpenMeteoResults,
+  parsePhotonResults,
+  searchPlaces,
+} = require("../src/lib/geocode");
 
 const WANGJING = {
   place_id: 11,
@@ -105,7 +114,7 @@ test("searchPlaces parses a neighborhood payload and sends a user agent", async 
   assert.equal(seen.options.headers["User-Agent"], "tianqi-widget-test");
 });
 
-test("searchPlaces does not fetch a blank query and throws when the service fails", async () => {
+test("searchPlaces does not fetch a blank query and throws when every provider fails", async () => {
   let called = false;
   const empty = await searchPlaces("   ", {
     fetchImpl: async () => {
@@ -116,7 +125,164 @@ test("searchPlaces does not fetch a blank query and throws when the service fail
   assert.equal(called, false);
   assert.deepEqual(empty, []);
 
-  await assert.rejects(() => searchPlaces("天通苑", {
-    fetchImpl: async () => ({ ok: false, status: 503, json: async () => ({}) }),
-  }));
+  const logs = [];
+  await assert.rejects(
+    () => searchPlaces("天通苑", {
+      log: (line) => logs.push(line),
+      fetchImpl: async () => ({ ok: false, status: 503, json: async () => ({ secret: "SECRET_BODY" }) }),
+    }),
+    /search failed/,
+  );
+  assert.deepEqual(logs, [
+    "[geocode] nominatim: http 503",
+    "[geocode] open-meteo: http 503",
+    "[geocode] photon: http 503",
+  ]);
+  assert.equal(logs.some((line) => line.includes("SECRET_BODY")), false);
+});
+
+const FOSHAN_METEO = {
+  id: 1811103,
+  name: "佛山市",
+  latitude: 23.02677,
+  longitude: 113.13148,
+  country: "中国",
+  admin1: "广东",
+  admin2: "佛山市",
+};
+
+const TIANTONGYUAN_PHOTON = {
+  type: "Feature",
+  properties: {
+    osm_type: "N",
+    osm_id: 5444679354,
+    name: "天通苑",
+    street: "立汤路",
+    district: "天通苑北街道",
+    city: "北京市",
+    country: "中国",
+  },
+  geometry: { type: "Point", coordinates: [116.4066402, 40.0737747] },
+};
+
+test("fallback urls ask Open-Meteo for Chinese and Photon for a short list", () => {
+  const meteo = new URL(buildOpenMeteoUrl("佛山市"));
+  assert.equal(meteo.origin + meteo.pathname, "https://geocoding-api.open-meteo.com/v1/search");
+  assert.equal(meteo.searchParams.get("name"), "佛山市");
+  assert.equal(meteo.searchParams.get("language"), "zh");
+  assert.equal(meteo.searchParams.get("count"), "8");
+  const photon = new URL(buildPhotonUrl("天通苑"));
+  assert.equal(photon.origin + photon.pathname, "https://photon.komoot.io/api/");
+  assert.equal(photon.searchParams.get("q"), "天通苑");
+  assert.equal(photon.searchParams.get("limit"), "8");
+  assert.equal(photon.searchParams.get("lang"), null);
+  assert.ok(PROVIDER_TIMEOUT_MS >= 1000 && PROVIDER_TIMEOUT_MS <= 8000);
+});
+
+test("parseOpenMeteoResults names a city and skips an empty payload", () => {
+  const places = parseOpenMeteoResults({
+    results: [
+      FOSHAN_METEO,
+      { id: 1, name: "坏坐标", latitude: 999, longitude: 10 },
+      FOSHAN_METEO,
+    ],
+  });
+  assert.equal(places.length, 1);
+  assert.deepEqual(places[0], {
+    id: "1811103",
+    name: "佛山市 · 广东",
+    detail: "佛山市 · 广东",
+    latitude: 23.02677,
+    longitude: 113.13148,
+  });
+  assert.equal(parseOpenMeteoResults({ generationtime_ms: 0.2 }).length, 0);
+});
+
+test("parsePhotonResults names a neighborhood from longitude-first coordinates", () => {
+  const places = parsePhotonResults({
+    features: [
+      TIANTONGYUAN_PHOTON,
+      { type: "Feature", properties: { name: "无名" }, geometry: { type: "Point", coordinates: [] } },
+    ],
+  });
+  assert.equal(places.length, 1);
+  assert.equal(places[0].id, "N:5444679354");
+  assert.equal(places[0].name, "天通苑 · 天通苑北街道 · 北京市");
+  assert.equal(places[0].detail, "天通苑 · 立汤路 · 天通苑北街道 · 北京市");
+  assert.equal(places[0].latitude, 40.0737747);
+  assert.equal(places[0].longitude, 116.4066402);
+});
+
+function providerOf(url) {
+  const href = String(url);
+  if (href.includes("nominatim.openstreetmap.org")) return "nominatim";
+  if (href.includes("geocoding-api.open-meteo.com")) return "open-meteo";
+  if (href.includes("photon.komoot.io")) return "photon";
+  return "other";
+}
+
+test("searchPlaces returns the first provider that has matches", async () => {
+  const calls = [];
+  const places = await searchPlaces("佛山市", {
+    log: () => {},
+    fetchImpl: async (url) => {
+      calls.push(providerOf(url));
+      return { ok: true, json: async () => [TIANTONGYUAN] };
+    },
+  });
+  assert.equal(places[0].name, "天通苑 · 天通苑北街道 · 昌平区");
+  assert.deepEqual(calls, ["nominatim"]);
+});
+
+test("searchPlaces uses Open-Meteo when Nominatim fails and does not leak the status", async () => {
+  const logs = [];
+  const calls = [];
+  const places = await searchPlaces("佛山市", {
+    log: (line) => logs.push(line),
+    fetchImpl: async (url) => {
+      const provider = providerOf(url);
+      calls.push(provider);
+      if (provider === "nominatim") {
+        const error = new TypeError("fetch failed");
+        error.cause = Object.assign(new Error("getaddrinfo ENOTFOUND nominatim.openstreetmap.org"), {
+          code: "ENOTFOUND",
+        });
+        throw error;
+      }
+      return { ok: true, json: async () => ({ results: [FOSHAN_METEO] }) };
+    },
+  });
+  assert.equal(places[0].name, "佛山市 · 广东");
+  assert.deepEqual(calls, ["nominatim", "open-meteo"]);
+  assert.deepEqual(logs, ["[geocode] nominatim: dns"]);
+});
+
+test("searchPlaces reaches Photon when earlier providers have no neighborhood match", async () => {
+  const calls = [];
+  const places = await searchPlaces("天通苑", {
+    log: () => {},
+    fetchImpl: async (url) => {
+      const provider = providerOf(url);
+      calls.push(provider);
+      if (provider === "nominatim") return { ok: false, status: 429, json: async () => ({}) };
+      if (provider === "open-meteo") return { ok: true, json: async () => ({ generationtime_ms: 0.2 }) };
+      return { ok: true, json: async () => ({ features: [TIANTONGYUAN_PHOTON] }) };
+    },
+  });
+  assert.equal(places[0].name, "天通苑 · 天通苑北街道 · 北京市");
+  assert.deepEqual(calls, ["nominatim", "open-meteo", "photon"]);
+});
+
+test("searchPlaces returns no matches when providers answer empty, even if one timed out", async () => {
+  const logs = [];
+  const places = await searchPlaces("没有这个地方xyz", {
+    timeoutMs: 40,
+    log: (line) => logs.push(line),
+    fetchImpl: (url) => {
+      if (providerOf(url) === "nominatim") return new Promise(() => {});
+      return Promise.resolve({ ok: true, json: async () => ({ results: [], features: [] }) });
+    },
+  });
+  assert.deepEqual(places, []);
+  assert.deepEqual(logs, ["[geocode] nominatim: timeout"]);
 });
