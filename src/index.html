@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>天气小挂件</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="widget">
+    <header class="chrome">
+      <button id="search-toggle" class="text-button" type="button" aria-expanded="false" aria-controls="search-surface">搜索</button>
+      <div class="place">
+        <div id="place-name" class="place-name">未选择地点</div>
+        <div id="place-detail" class="place-detail"></div>
+      </div>
+      <button id="close-button" class="close-button" type="button" aria-label="关闭">
+        <svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true">
+          <path d="M2.2 2.2 L9.8 9.8 M9.8 2.2 L2.2 9.8" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" />
+        </svg>
+      </button>
+    </header>
+
+    <div class="body">
+      <section class="weather" aria-live="polite">
+        <p id="weather-empty" class="weather-empty">选择地点</p>
+        <div id="weather-skeleton" class="skeleton" hidden>
+          <div class="sk sk-temp"></div>
+          <div class="sk sk-line"></div>
+          <div class="sk sk-line sk-mid"></div>
+        </div>
+        <div id="weather-data" class="weather-data" hidden>
+          <div class="temp">
+            <span id="temp-value" class="temp-value">--</span>
+            <span class="unit">℃</span>
+          </div>
+          <p id="condition" class="quiet condition">--</p>
+          <p id="stale-tag" class="quiet stale" hidden>上次数据</p>
+          <p class="metrics quiet">
+            <span id="humidity">湿度 --</span>
+            <span id="uv">紫外线 --</span>
+          </p>
+          <p id="clothing" class="clothing" hidden></p>
+        </div>
+      </section>
+
+      <section class="almanac" aria-label="黄历">
+        <p class="date-row"><span class="date-label">新历</span><span id="gregorian"></span></p>
+        <p class="date-row"><span class="date-label">农历</span><span id="lunar"></span></p>
+        <div class="yiji">
+          <p class="yiji-row"><span class="mark mark-yi">宜</span><span id="yi"></span></p>
+          <p class="yiji-row"><span class="mark mark-ji">忌</span><span id="ji"></span></p>
+        </div>
+        <p id="festivals" class="festivals"></p>
+      </section>
+
+      <p id="status" class="status" role="status"></p>
+      <p class="credits">地点 © OpenStreetMap · 天气 Open-Meteo</p>
+
+      <div id="search-surface" class="search-surface" role="dialog" aria-label="搜索地点" aria-hidden="true" inert>
+        <form id="search-form" class="search-form">
+          <input id="search-input" type="text" maxlength="80" placeholder="城市或小区" aria-label="地点关键词" autocomplete="off" spellcheck="false" role="combobox" aria-expanded="false" aria-controls="search-results" aria-autocomplete="list" />
+          <button id="search-button" class="text-button search-submit" type="submit">搜索</button>
+        </form>
+        <p id="search-message" class="search-message" role="status"></p>
+        <div id="search-results" class="results" role="listbox" aria-label="地点结果"></div>
+      </div>
+    </div>
+  </main>
+  <script src="../dist/renderer.js"></script>
+</body>
+</html>
