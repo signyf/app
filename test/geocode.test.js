@@ -2,9 +2,12 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const {
   PROVIDER_TIMEOUT_MS,
+  buildAmapUrl,
   buildOpenMeteoUrl,
   buildPhotonUrl,
   buildSearchUrl,
+  expandQueries,
+  parseAmapResults,
   parseNominatimResults,
   parseOpenMeteoResults,
   parsePhotonResults,
@@ -218,12 +221,18 @@ function providerOf(url) {
   if (href.includes("nominatim.openstreetmap.org")) return "nominatim";
   if (href.includes("geocoding-api.open-meteo.com")) return "open-meteo";
   if (href.includes("photon.komoot.io")) return "photon";
+  if (href.includes("restapi.amap.com")) return "amap";
   return "other";
+}
+
+function queryOf(url) {
+  const params = new URL(String(url)).searchParams;
+  return params.get("q") || params.get("name") || params.get("address") || "";
 }
 
 test("searchPlaces returns the first provider that has matches", async () => {
   const calls = [];
-  const places = await searchPlaces("佛山市", {
+  const places = await searchPlaces("天通苑", {
     log: () => {},
     fetchImpl: async (url) => {
       calls.push(providerOf(url));
@@ -285,4 +294,211 @@ test("searchPlaces returns no matches when providers answer empty, even if one t
   });
   assert.deepEqual(places, []);
   assert.deepEqual(logs, ["[geocode] nominatim: timeout"]);
+});
+
+test("expandQueries shortens a house number to the road and a spaced hint", () => {
+  assert.deepEqual(expandQueries("佛山市南海区叠翠路8号"), [
+    "佛山市南海区叠翠路8号",
+    "佛山市南海区叠翠路",
+    "叠翠路 南海 佛山",
+  ]);
+  assert.deepEqual(expandQueries("天通苑"), ["天通苑"]);
+});
+
+test("parseNominatimResults drops a foreign city such as Busan", () => {
+  const places = parseNominatimResults([
+    {
+      place_id: 5,
+      lat: "23.0239788",
+      lon: "113.1159558",
+      name: "佛山市",
+      display_name: "佛山市, 南海区, 广东省, 中国",
+      address: { city: "佛山市", county: "南海区", state: "广东省", country: "中国", country_code: "cn" },
+    },
+    {
+      place_id: 9,
+      lat: "35.1796",
+      lon: "129.0756",
+      name: "釜山廣域市",
+      display_name: "釜山廣域市, 韩国",
+      address: { city: "釜山廣域市", country: "韩国", country_code: "kr" },
+    },
+  ]);
+  assert.equal(places.length, 1);
+  assert.equal(places[0].name, "佛山市 · 南海区 · 广东省");
+});
+
+const NANHAI_ROAD = {
+  type: "Feature",
+  properties: {
+    osm_type: "W",
+    osm_id: 842700001,
+    osm_key: "highway",
+    name: "叠翠路",
+    district: "桂城街道",
+    county: "南海区",
+    city: "佛山市",
+    state: "广东省",
+    country: "中国",
+    countrycode: "CN",
+  },
+  geometry: { type: "Point", coordinates: [113.1212, 23.052] },
+};
+
+test("searchPlaces retries a shorter query and labels a road pin", async () => {
+  const calls = [];
+  const places = await searchPlaces("佛山市南海区叠翠路8号", {
+    log: () => {},
+    fetchImpl: async (url) => {
+      const provider = providerOf(url);
+      const asked = queryOf(url);
+      calls.push(`${provider}:${asked}`);
+      if (provider === "nominatim") return { ok: false, status: 503, json: async () => ({}) };
+      if (provider !== "photon" || asked !== "叠翠路 南海 佛山") {
+        return { ok: true, json: async () => ({ results: [], features: [] }) };
+      }
+      return { ok: true, json: async () => ({ features: [NANHAI_ROAD] }) };
+    },
+  });
+  assert.equal(places.length, 1);
+  assert.equal(places[0].name, "叠翠路 · 桂城街道 · 佛山市");
+  assert.match(places[0].detail, /^道路位置，不是门牌/);
+  assert.equal(places[0].detail.includes("南海区"), true);
+  assert.equal(calls.filter((call) => call.startsWith("nominatim:")).length, 1);
+  assert.equal(calls.some((call) => call === "photon:叠翠路 南海 佛山"), true);
+});
+
+test("searchPlaces ignores a same-named road in another city and a fuzzy city hit", async () => {
+  const hefei = {
+    ...NANHAI_ROAD,
+    properties: {
+      ...NANHAI_ROAD.properties,
+      osm_id: 2,
+      district: "官亭镇",
+      county: "肥西县",
+      city: "合肥市",
+      state: "安徽省",
+    },
+    geometry: { type: "Point", coordinates: [116.8942, 31.7901] },
+  };
+  const places = await searchPlaces("佛山市南海区叠翠路8号", {
+    log: () => {},
+    fetchImpl: async (url) => {
+      if (providerOf(url) !== "photon") return { ok: true, json: async () => [] };
+      return { ok: true, json: async () => ({ features: [hefei] }) };
+    },
+  });
+  assert.deepEqual(places, []);
+});
+
+const AMAP_ROAD = {
+  formatted_address: "广东省佛山市南海区叠翠路",
+  country: "中国",
+  province: "广东省",
+  city: "佛山市",
+  district: "南海区",
+  street: "叠翠路",
+  number: [],
+  location: "113.121200,23.052000",
+  level: "道路",
+};
+
+test("parseAmapResults keeps a road and a door at different precision", () => {
+  const road = parseAmapResults({ status: "1", geocodes: [AMAP_ROAD] });
+  assert.equal(road[0].name, "叠翠路 · 南海区 · 佛山市");
+  assert.equal(road[0].latitude, 23.052);
+  assert.equal(road[0].longitude, 113.1212);
+  const door = parseAmapResults({
+    status: "1",
+    geocodes: [{
+      ...AMAP_ROAD,
+      number: "8号",
+      level: "门牌号",
+      formatted_address: "广东省佛山市南海区叠翠路8号",
+      location: "113.121210,23.051970",
+    }],
+  });
+  assert.equal(door[0].name, "叠翠路8号 · 南海区 · 佛山市");
+});
+
+test("parseAmapResults throws a status that does not include the key", () => {
+  assert.throws(() => parseAmapResults({ status: "0", info: "INVALID_USER_KEY", infocode: "10001" }), (error) => {
+    assert.equal(error.infocode, "10001");
+    assert.equal(String(error.message).includes("key"), false);
+    return true;
+  });
+});
+
+test("searchPlaces uses Amap for 叠翠路 when keyless providers have no Nanhai road", async () => {
+  const seen = [];
+  const places = await searchPlaces("佛山市南海区叠翠路8号", {
+    amapKey: "test-key",
+    log: (line) => seen.push(line),
+    fetchImpl: async (url) => {
+      const href = String(url);
+      if (providerOf(href) !== "amap") return { ok: true, json: async () => [] };
+      const params = new URL(href).searchParams;
+      assert.equal(params.get("key"), "test-key");
+      assert.equal(params.get("city"), "佛山");
+      assert.equal(params.get("address"), "佛山市南海区叠翠路8号");
+      return { ok: true, json: async () => ({ status: "1", geocodes: [AMAP_ROAD] }) };
+    },
+  });
+  assert.equal(places[0].name, "叠翠路 · 南海区 · 佛山市");
+  assert.match(places[0].detail, /^道路位置，不是门牌/);
+  assert.deepEqual(seen, []);
+  const url = new URL(buildAmapUrl("佛山市南海区叠翠路", "test-key", "佛山"));
+  assert.equal(url.origin + url.pathname, "https://restapi.amap.com/v3/geocode/geo");
+  assert.equal(url.searchParams.get("city"), "佛山");
+});
+
+const DIECUI_GARDEN = {
+  place_id: 238055349,
+  lat: "23.0519681",
+  lon: "113.1212161",
+  name: "叠翠花园",
+  display_name: "叠翠花园, 桂城街道, 南海区, 佛山市, 南海区, 广东省, 中国",
+  address: {
+    residential: "叠翠花园",
+    suburb: "桂城街道",
+    city: "南海区",
+    county: "南海区",
+    state: "广东省",
+    country: "中国",
+    country_code: "cn",
+  },
+};
+
+test("searchPlaces uses the Nanhai compound when no source has the road", async () => {
+  const calls = [];
+  const places = await searchPlaces("佛山市南海区叠翠路8号", {
+    log: () => {},
+    fetchImpl: async (url) => {
+      const provider = providerOf(url);
+      const asked = queryOf(url);
+      calls.push(`${provider}:${asked}`);
+      if (provider === "nominatim" && asked === "叠翠 南海 佛山") {
+        return { ok: true, json: async () => [DIECUI_GARDEN] };
+      }
+      return { ok: true, json: async () => [] };
+    },
+  });
+  assert.equal(places[0].name, "叠翠花园 · 桂城街道 · 南海区");
+  assert.match(places[0].detail, /^小区位置，不是门牌/);
+  assert.equal(places[0].detail.includes("佛山市"), true);
+  assert.equal(calls.includes("nominatim:叠翠 南海 佛山"), true);
+  assert.equal(calls.some((call) => call.startsWith("nominatim:佛山市南海区叠翠路8号")), true);
+});
+
+test("searchPlaces does not call Amap without a key", async () => {
+  let amap = false;
+  const places = await searchPlaces("佛山市南海区叠翠路8号", {
+    log: () => {},
+    fetchImpl: async (url) => {
+      if (providerOf(url) === "amap") amap = true;
+      return { ok: true, json: async () => [] };
+    },
+  });
+  assert.equal(amap, false);
+  assert.deepEqual(places, []);
 });

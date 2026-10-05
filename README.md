@@ -35,7 +35,7 @@ npm start
 npm run dist
 ```
 
-会先打包界面脚本，再用 electron-builder 生成一个免安装的 Windows 可执行文件 `release/tianqi-widget-1.2.0-portable.exe`。双击即可运行，不需要再装 Node.js。这个文件没有代码签名，图标用的是 Electron 默认图标。在 Windows 上直接执行即可；在 Linux 上交叉编译需要 Wine。
+会先打包界面脚本，再用 electron-builder 生成一个免安装的 Windows 可执行文件 `release/tianqi-widget-1.3.0-portable.exe`。双击即可运行，不需要再装 Node.js。这个文件没有代码签名，图标用的是 Electron 默认图标。在 Windows 上直接执行即可；在 Linux 上交叉编译需要 Wine。
 
 ## 测试
 
@@ -50,12 +50,15 @@ npm test
 ## 数据来源
 
 - 天气： [Open-Meteo](https://open-meteo.com/)（按经纬度取气温、湿度、天气现象和紫外线）
-- 地点搜索：先查 [Nominatim](https://nominatim.org/) / © OpenStreetMap 贡献者。这个地址在部分网络里会超时。没有结果或请求失败时，再查 [Open-Meteo Geocoding](https://open-meteo.com/en/docs/geocoding-api)（`language=zh`），仍没有匹配再查 [Photon](https://photon.komoot.io/)。都不需要 API key。
+- 地点搜索：先查 [Nominatim](https://nominatim.org/) / © OpenStreetMap 贡献者。这个地址在部分网络里会超时。没有结果或请求失败时，再查 [Open-Meteo Geocoding](https://open-meteo.com/en/docs/geocoding-api)（`language=zh`），仍没有匹配再查 [Photon](https://photon.komoot.io/)。这三处都不需要 API key。完整地址没有命中时，会去掉门牌再搜，例如「佛山市南海区叠翠路8号」会再试「佛山市南海区叠翠路」和「叠翠路 南海 佛山」。结果只保留中国境内。点落在道路上而不是门牌时，会写明「道路位置，不是门牌」。公开数据没有这条路、但同一个区有同名小区时（例如叠翠路对到叠翠花园），会显示小区，并写明「小区位置，不是门牌」。
+- 可选的道路补充：[高德地理编码](https://lbs.amap.com/api/webservice/guide/api/georegeo)。OpenStreetMap 经常没有中国的小路。配置了 Key 才会请求高德，没有 Key 时跳过。任选一种，不要把 Key 提交进仓库：
+  - 环境变量 `AMAP_KEY`
+  - 文本文件 `amap.key`，只写一行 Key，放在程序工作目录、便携版 exe 旁边，或应用数据目录
 - 农历、黄历宜忌、传统节日和法定节假日： [lunar-javascript](https://github.com/6tail/lunar-javascript)
 
 ## 已知限制
 
-- 小区能不能搜到，取决于这些公开地理数据有没有收录这个名字。有的小区只能对到同名公交站或道路，坐标大致还在那一片，足够看天气，但不是门牌级精度。重名时请看结果里的区县再选。
+- 小区和道路能不能搜到，取决于这些公开地理数据有没有收录这个名字。高德没有配置时，中国的小路经常没有结果。有的小区只能对到同名公交站或道路，坐标大致还在那一片，足够看天气，但不是门牌级精度。结果写了「道路位置，不是门牌」时，不要把它当成门口坐标。重名时请看结果里的区县再选。
 - 每个地点来源单独计时。一个地址连不上会记下超时、DNS 或 HTTP 状态并改查下一个，不会把界面一直挂住。请不要连续猛点，公开服务有频率限制。
 - 法定节假日使用 lunar-javascript 自带年表。超出年表的年份，仍会显示传统农历节日，但当年的放假和调休可能缺失。
 - 黄历宜忌来自该库的传统历法数据，只作日常参考。

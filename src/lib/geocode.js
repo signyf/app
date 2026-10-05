@@ -1,8 +1,11 @@
 const NOMINATIM_ENDPOINT = "https://nominatim.openstreetmap.org/search";
 const OPEN_METEO_ENDPOINT = "https://geocoding-api.open-meteo.com/v1/search";
 const PHOTON_ENDPOINT = "https://photon.komoot.io/api/";
-const DEFAULT_USER_AGENT = "tianqi-widget/1.2 (desktop weather widget)";
+const AMAP_ENDPOINT = "https://restapi.amap.com/v3/geocode/geo";
+const DEFAULT_USER_AGENT = "tianqi-widget/1.3 (desktop weather widget)";
 const PROVIDER_TIMEOUT_MS = 5000;
+const ROAD_NOTE = "道路位置，不是门牌";
+const COMPOUND_NOTE = "小区位置，不是门牌";
 
 function clean(value) {
   return typeof value === "string" ? value.trim() : "";
@@ -77,10 +80,11 @@ function fallbackName(displayName) {
 
 function formatDetail(displayName, fallback) {
   if (typeof displayName !== "string" || !displayName.trim()) return fallback;
-  const parts = displayName
-    .split(",")
-    .map((part) => part.trim())
-    .filter((part) => part && part !== "中国" && !/^\d{4,}$/.test(part));
+  const parts = [];
+  for (const part of displayName.split(",").map((item) => item.trim())) {
+    if (!part || part === "中国" || /^\d{4,}$/.test(part) || parts.includes(part)) continue;
+    parts.push(part);
+  }
   return parts.length ? parts.join(" · ") : fallback;
 }
 
@@ -91,8 +95,118 @@ function validLatLon(latitude, longitude) {
     && Math.abs(longitude) <= 180;
 }
 
+function outsideChina({ code, country, displayName }) {
+  const normalized = clean(code).toLowerCase();
+  if (normalized && normalized !== "cn" && normalized !== "chn") return true;
+  const name = clean(country);
+  if (name && name !== "中国") return true;
+  if (typeof displayName === "string") {
+    const foreign = new Set(["韩国", "日本", "美国", "朝鲜"]);
+    const parts = displayName.split(",").map((part) => part.trim());
+    if (parts.some((part) => foreign.has(part))) return true;
+  }
+  return false;
+}
+
+function fieldText(value) {
+  if (Array.isArray(value)) return "";
+  return clean(value);
+}
+
+function adminToken(query, suffix) {
+  const compact = String(query || "").replace(/\s+/g, "");
+  const found = compact.match(new RegExp(`[\\u4e00-\\u9fff]{2,8}${suffix}`, "g")) || [];
+  if (!found.length) return "";
+  const core = found[found.length - 1].slice(0, -suffix.length);
+  return core.replace(/^.*[省市]/, "") || core;
+}
+
+function roadToken(query) {
+  const compact = String(query || "").replace(/\s+/g, "");
+  const found = compact.match(/[\u4e00-\u9fff]{2,8}(?:路|街|巷|胡同|大街)/g) || [];
+  if (!found.length) return "";
+  return found[found.length - 1].replace(/^.*[市区县镇乡]/, "");
+}
+
+function houseToken(query) {
+  const match = String(query || "").match(/(?:[0-9０-９]+|[零一二三四五六七八九十百]+)\s*号/);
+  return match ? match[0].replace(/\s+/g, "") : "";
+}
+
+function expandQueries(query) {
+  const variants = [];
+  const add = (value) => {
+    const text = String(value || "").replace(/\s+/g, " ").trim();
+    if (!text || variants.includes(text)) return;
+    variants.push(text);
+  };
+  add(query);
+  const compact = String(query || "").replace(/\s+/g, "");
+  add(compact.replace(/(?:[0-9０-９]+|[零一二三四五六七八九十百]+)\s*号(?:楼|室|铺|栋)?.*$/, ""));
+  const road = roadToken(compact);
+  if (road) {
+    add([road, adminToken(compact, "区"), adminToken(compact, "市")].filter(Boolean).join(" "));
+  }
+  return variants.slice(0, 4);
+}
+
+function relevantPlaces(places, query) {
+  const road = roadToken(query);
+  const city = adminToken(query, "市");
+  const district = adminToken(query, "区");
+  return places.filter((place) => {
+    const blob = `${place.name}${place.detail}`;
+    if (road && !blob.includes(road)) return false;
+    if (city && !blob.includes(city)) return false;
+    if (district && !blob.includes(district)) return false;
+    return true;
+  });
+}
+
+function stemQuery(query) {
+  const road = roadToken(query);
+  const stem = road.replace(/(?:路|街|巷|胡同|大街)$/, "");
+  if (!stem || stem === road || stem.length < 2) return "";
+  return [stem, adminToken(query, "区"), adminToken(query, "市")].filter(Boolean).join(" ");
+}
+
+function relevantStem(places, query) {
+  const stem = roadToken(query).replace(/(?:路|街|巷|胡同|大街)$/, "");
+  const city = adminToken(query, "市");
+  const district = adminToken(query, "区");
+  return places.filter((place) => {
+    const blob = `${place.name}${place.detail}`;
+    if (!stem || !blob.includes(stem)) return false;
+    if (city && !blob.includes(city)) return false;
+    if (district && !blob.includes(district)) return false;
+    return true;
+  });
+}
+
+function labelRoadPin(places, query) {
+  const house = houseToken(query);
+  const road = roadToken(query);
+  if (!house) return places;
+  return places.map((place) => {
+    if (place.name.includes(house)) return place;
+    const blob = `${place.name}${place.detail}`;
+    const note = road && blob.includes(road) ? ROAD_NOTE : COMPOUND_NOTE;
+    if (place.detail.startsWith(note)) return place;
+    return {
+      ...place,
+      detail: place.detail ? `${note} · ${place.detail}` : note,
+    };
+  });
+}
+
 function toPlace(entry) {
   if (!entry || typeof entry !== "object") return null;
+  const address = entry.address || {};
+  if (outsideChina({
+    code: address.country_code,
+    country: address.country,
+    displayName: entry.display_name,
+  })) return null;
   const latitude = Number(entry.lat);
   const longitude = Number(entry.lon);
   if (!validLatLon(latitude, longitude)) return null;
@@ -141,6 +255,7 @@ function uniqueParts(values, { primary = "", limit = 8 } = {}) {
 
 function openMeteoToPlace(entry) {
   if (!entry || typeof entry !== "object") return null;
+  if (outsideChina({ code: entry.country_code, country: entry.country })) return null;
   const latitude = Number(entry.latitude);
   const longitude = Number(entry.longitude);
   if (!validLatLon(latitude, longitude)) return null;
@@ -177,6 +292,7 @@ function photonToPlace(feature) {
   const latitude = Number(coordinates[1]);
   if (!validLatLon(latitude, longitude)) return null;
   const props = feature.properties || {};
+  if (outsideChina({ code: props.countrycode, country: props.country })) return null;
   const primary = clean(props.name);
   if (!primary) return null;
   const name = uniqueParts(
@@ -231,6 +347,58 @@ function buildPhotonUrl(query) {
   return url.toString();
 }
 
+function buildAmapUrl(query, key, city) {
+  const url = new URL(AMAP_ENDPOINT);
+  url.searchParams.set("address", query);
+  url.searchParams.set("output", "JSON");
+  url.searchParams.set("key", key);
+  const bias = clean(city);
+  if (bias) url.searchParams.set("city", bias);
+  return url.toString();
+}
+
+function amapToPlace(entry) {
+  if (!entry || typeof entry !== "object") return null;
+  if (outsideChina({ country: fieldText(entry.country) || "中国" })) return null;
+  const location = fieldText(entry.location);
+  const [lonText, latText] = location.split(",");
+  const longitude = Number(lonText);
+  const latitude = Number(latText);
+  if (!validLatLon(latitude, longitude)) return null;
+  const street = fieldText(entry.street);
+  const number = fieldText(entry.number);
+  const district = fieldText(entry.district);
+  const city = fieldText(entry.city);
+  const province = fieldText(entry.province);
+  const formatted = fieldText(entry.formatted_address);
+  const level = fieldText(entry.level);
+  const doorLevel = level === "门牌号" || level === "门址" || level === "单元号";
+  const primary = street ? (doorLevel && number ? `${street}${number}` : street) : "";
+  const name = primary
+    ? uniqueParts([primary, district, city || province], { primary, limit: 3 }).join(" · ")
+    : uniqueParts([formatted, district, city], { limit: 3 }).join(" · ");
+  if (!name) return null;
+  const detail = uniqueParts([formatted, street, number, district, city, province], { limit: 6 }).join(" · ") || name;
+  return {
+    id: `amap:${location}`,
+    name,
+    detail,
+    latitude,
+    longitude,
+  };
+}
+
+function parseAmapResults(payload) {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return [];
+  if (String(payload.status) === "0") {
+    const error = new Error("search failed");
+    error.infocode = String(payload.infocode || "");
+    throw error;
+  }
+  const entries = Array.isArray(payload.geocodes) ? payload.geocodes : [];
+  return collectPlaces(entries, amapToPlace);
+}
+
 function jsonHeaders(userAgent, language) {
   const headers = {
     Accept: "application/json",
@@ -275,6 +443,7 @@ function describeFailure(error) {
   while (current && typeof current === "object" && !seen.has(current) && depth < 8) {
     seen.add(current);
     depth += 1;
+    if (typeof current.infocode === "string" && current.infocode) return `amap ${current.infocode}`;
     if (typeof current.status === "number") return `http ${current.status}`;
     const code = current.code;
     if (code === "ENOTFOUND" || code === "EAI_AGAIN" || code === "EAI_NONAME") return "dns";
@@ -362,35 +531,88 @@ async function requestProvider(provider, query, { fetchImpl, userAgent, signal, 
   }
 }
 
+function providersFor(amapKey, city) {
+  const providers = [...PROVIDERS];
+  const key = clean(amapKey);
+  if (!key) return providers;
+  providers.push({
+    id: "amap",
+    buildUrl: (query) => buildAmapUrl(query, key, city),
+    headers: (userAgent) => jsonHeaders(userAgent, "zh"),
+    parse: parseAmapResults,
+  });
+  return providers;
+}
+
 async function searchPlaces(query, {
   fetchImpl = globalThis.fetch,
   userAgent = DEFAULT_USER_AGENT,
   signal,
   timeoutMs = PROVIDER_TIMEOUT_MS,
   log = console.error,
+  amapKey = "",
 } = {}) {
   const q = String(query || "").trim().slice(0, 80);
   if (!q) return [];
 
+  const variants = expandQueries(q);
+  const providers = providersFor(amapKey, adminToken(q, "市"));
+  const dead = new Set();
   let responded = false;
-  for (const provider of PROVIDERS) {
-    if (signal?.aborted) {
-      const error = signal.reason || new DOMException("The operation was aborted", "AbortError");
-      logStatus(log, provider.id, error);
-      throw error;
+  for (const variant of variants) {
+    for (const provider of providers) {
+      if (dead.has(provider.id)) continue;
+      if (signal?.aborted) {
+        const error = signal.reason || new DOMException("The operation was aborted", "AbortError");
+        logStatus(log, provider.id, error);
+        throw error;
+      }
+      try {
+        const places = labelRoadPin(
+          relevantPlaces(await requestProvider(provider, variant, {
+            fetchImpl,
+            userAgent,
+            signal,
+            timeoutMs,
+          }), q),
+          q,
+        );
+        if (places.length) return places;
+        responded = true;
+      } catch (error) {
+        logStatus(log, provider.id, error);
+        dead.add(provider.id);
+        if (signal?.aborted) throw error;
+      }
     }
-    try {
-      const places = await requestProvider(provider, q, {
-        fetchImpl,
-        userAgent,
-        signal,
-        timeoutMs,
-      });
-      if (places.length) return places;
-      responded = true;
-    } catch (error) {
-      logStatus(log, provider.id, error);
-      if (signal?.aborted) throw error;
+  }
+
+  const stem = stemQuery(q);
+  if (stem) {
+    for (const provider of providers) {
+      if (dead.has(provider.id)) continue;
+      if (signal?.aborted) {
+        const error = signal.reason || new DOMException("The operation was aborted", "AbortError");
+        logStatus(log, provider.id, error);
+        throw error;
+      }
+      try {
+        const places = labelRoadPin(
+          relevantStem(await requestProvider(provider, stem, {
+            fetchImpl,
+            userAgent,
+            signal,
+            timeoutMs,
+          }), q),
+          q,
+        );
+        if (places.length) return places;
+        responded = true;
+      } catch (error) {
+        logStatus(log, provider.id, error);
+        dead.add(provider.id);
+        if (signal?.aborted) throw error;
+      }
     }
   }
 
@@ -400,9 +622,12 @@ async function searchPlaces(query, {
 
 module.exports = {
   PROVIDER_TIMEOUT_MS,
+  buildAmapUrl,
   buildOpenMeteoUrl,
   buildPhotonUrl,
   buildSearchUrl,
+  expandQueries,
+  parseAmapResults,
   parseNominatimResults,
   parseOpenMeteoResults,
   parsePhotonResults,

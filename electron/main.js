@@ -7,7 +7,7 @@ const { initialPosition } = require("./placement");
 const { searchPlaces } = require("../src/lib/geocode");
 const { fetchWeatherPayload, resolveWeatherView, samePlace } = require("../src/lib/weather");
 
-const USER_AGENT = "tianqi-widget/1.2 (desktop weather widget)";
+const USER_AGENT = "tianqi-widget/1.3 (desktop weather widget)";
 
 function preloadPath() {
   const packed = path.join(__dirname, "preload.js");
@@ -20,6 +20,26 @@ function preloadPath() {
 
 function solidBackground() {
   return nativeTheme.shouldUseDarkColors ? "#202020" : "#F3F3F3";
+}
+
+function readAmapKey() {
+  const fromEnv = typeof process.env.AMAP_KEY === "string" ? process.env.AMAP_KEY.trim() : "";
+  if (fromEnv) return fromEnv;
+  const files = [
+    process.env.AMAP_KEY_FILE,
+    path.join(process.cwd(), "amap.key"),
+    path.join(path.dirname(process.execPath), "amap.key"),
+    path.join(app.getPath("userData"), "amap.key"),
+  ].filter(Boolean);
+  for (const file of files) {
+    try {
+      const line = fs.readFileSync(file, "utf8").split(/\r?\n/).map((item) => item.trim()).find(Boolean) || "";
+      if (line && !line.startsWith("#")) return line;
+    } catch {
+      // The key file is optional.
+    }
+  }
+  return "";
 }
 
 function registerIpc(store) {
@@ -48,6 +68,7 @@ function registerIpc(store) {
     try {
       const places = await searchPlaces(query, {
         userAgent: USER_AGENT,
+        amapKey: readAmapKey(),
       });
       if (!places.length) {
         return { ok: false, places: [], message: "没有结果" };
