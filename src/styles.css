@@ -1,0 +1,255 @@
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background: #1c2430;
+  color: #e8eef6;
+  font-family: "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", "WenQuanYi Micro Hei", "Segoe UI", sans-serif;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+button, input { font: inherit; color: inherit; }
+
+button {
+  background: rgba(255, 255, 255, 0.06);
+  border: 0;
+  border-radius: 8px;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+
+button:hover { background: rgba(255, 255, 255, 0.12); }
+
+button:focus-visible, input:focus-visible {
+  outline: 2px solid #8fb4d6;
+  outline-offset: 1px;
+}
+
+[hidden] { display: none !important; }
+
+.accent {
+  height: 3px;
+  background: linear-gradient(90deg, #e7c98a, #7fafc4);
+  -webkit-app-region: drag;
+}
+
+.widget {
+  height: calc(100% - 3px);
+  display: flex;
+  flex-direction: column;
+  padding: 0 16px 10px;
+  user-select: none;
+  -webkit-app-region: drag;
+}
+
+button, input, .results, .result-item {
+  -webkit-app-region: no-drag;
+  user-select: auto;
+}
+
+.titlebar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 58px;
+  padding: 10px 0 8px;
+}
+
+.place { flex: 1; min-width: 0; }
+
+.place-name {
+  font-size: 15px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.place-detail {
+  margin-top: 2px;
+  color: #9aa6b8;
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ghost { color: #d7e4f2; }
+
+.close-button {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.view {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+#main-view { flex: 0 0 auto; }
+
+.weather-empty {
+  margin: 8px 0 4px;
+  color: #9aa6b8;
+}
+
+.temp-row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.temp { color: #f6e2bc; line-height: 0.9; }
+
+.temp-value {
+  font-size: 56px;
+  font-weight: 520;
+  letter-spacing: -1px;
+}
+
+.unit {
+  margin-left: 2px;
+  font-size: 20px;
+}
+
+.temp-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  padding-bottom: 6px;
+}
+
+.condition { font-size: 18px; }
+
+.stale-tag {
+  color: #e6c98a;
+  border: 1px solid rgba(230, 201, 138, 0.5);
+  border-radius: 999px;
+  padding: 1px 8px;
+  font-size: 12px;
+}
+
+.metrics {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.metric {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 999px;
+  padding: 3px 10px;
+  color: #d5deea;
+  font-size: 12px;
+}
+
+.clothing {
+  margin: 10px 0 0;
+  background: rgba(243, 221, 176, 0.1);
+  color: #f3e6cf;
+  border-radius: 10px;
+  padding: 8px 10px;
+}
+
+.rule {
+  height: 1px;
+  margin: 2px 0;
+  border: 0;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.almanac { display: flex; flex-direction: column; gap: 6px; }
+
+.date-row, .yiji-row { display: flex; gap: 8px; align-items: flex-start; }
+
+.date-label {
+  flex: 0 0 2.4em;
+  color: #8ea0b8;
+}
+
+.tag {
+  flex: 0 0 auto;
+  min-width: 1.5em;
+  margin-top: 1px;
+  padding: 0 4px;
+  border-radius: 4px;
+  text-align: center;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.tag.yi { background: #1d3b34; color: #cfe8dc; }
+.tag.ji { background: #3d2628; color: #f0d0d0; }
+
+.festivals { margin: 2px 0 0; color: #f0e2c4; }
+.festivals.empty { color: #9aa6b8; }
+
+.status {
+  margin: 2px 0 0;
+  min-height: 1.2em;
+  color: #8b97a8;
+  font-size: 12px;
+}
+
+.status.warn { color: #e6c98a; }
+
+.search-form { display: flex; gap: 8px; }
+
+.search-form input {
+  flex: 1;
+  min-width: 0;
+  background: #141b26;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+.search-message {
+  min-height: 1.2em;
+  margin: 0;
+  color: #e3b4b4;
+}
+
+.results {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.result-item {
+  width: 100%;
+  text-align: left;
+  background: rgba(255, 255, 255, 0.04);
+  padding: 8px 10px;
+}
+
+.result-name, .result-detail { display: block; }
+
+.result-detail {
+  color: #9aa6b8;
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.back { align-self: flex-start; }
+
+.credits {
+  margin: 8px 0 0;
+  color: #6f7c8e;
+  font-size: 11px;
+}
