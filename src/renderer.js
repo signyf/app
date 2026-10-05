@@ -9,6 +9,8 @@ const {
 
 let currentLocation = null;
 let requestSerial = 0;
+let searchOpen = false;
+let composing = false;
 
 function renderAlmanac(date) {
   const almanac = getAlmanac(date.getFullYear(), date.getMonth() + 1, date.getDate());
@@ -18,11 +20,11 @@ function renderAlmanac(date) {
   document.getElementById("ji").textContent = formatActivities(almanac.ji);
   const festivals = document.getElementById("festivals");
   if (almanac.festivals.length) {
-    festivals.textContent = `节日 ${almanac.festivals.join("、")}`;
-    festivals.classList.remove("empty");
+    festivals.textContent = almanac.festivals.join("、");
+    festivals.classList.add("has-day");
   } else {
     festivals.textContent = "今日无节庆";
-    festivals.classList.add("empty");
+    festivals.classList.remove("has-day");
   }
 }
 
@@ -34,6 +36,13 @@ function renderLocation(location) {
 function showWeatherEmpty(message) {
   document.getElementById("weather-empty").hidden = false;
   document.getElementById("weather-empty").textContent = message;
+  document.getElementById("weather-skeleton").hidden = true;
+  document.getElementById("weather-data").hidden = true;
+}
+
+function showSkeleton() {
+  document.getElementById("weather-empty").hidden = true;
+  document.getElementById("weather-skeleton").hidden = false;
   document.getElementById("weather-data").hidden = true;
 }
 
@@ -45,10 +54,11 @@ function setStatus(message, warn) {
 
 function renderWeather(weather, { stale = false } = {}) {
   if (!weather) {
-    showWeatherEmpty("选择地点后显示天气");
+    showWeatherEmpty("选择地点");
     return;
   }
   document.getElementById("weather-empty").hidden = true;
+  document.getElementById("weather-skeleton").hidden = true;
   document.getElementById("weather-data").hidden = false;
   document.getElementById("temp-value").textContent = formatTemperature(weather.temperature);
   document.getElementById("condition").textContent = weatherLabel(weather.weatherCode);
@@ -57,30 +67,64 @@ function renderWeather(weather, { stale = false } = {}) {
   const tip = clothingTip(weather);
   const clothing = document.getElementById("clothing");
   clothing.hidden = !tip;
-  clothing.textContent = tip ? `穿衣：${tip}` : "";
+  clothing.textContent = tip || "";
   document.getElementById("stale-tag").hidden = !stale;
 }
 
-function showMainView() {
-  document.getElementById("main-view").hidden = false;
-  document.getElementById("search-view").hidden = true;
-}
-
-function showSearchView() {
-  document.getElementById("main-view").hidden = true;
-  document.getElementById("search-view").hidden = false;
+function openSearch() {
+  if (searchOpen) {
+    closeSearch();
+    return;
+  }
+  searchOpen = true;
+  const surface = document.getElementById("search-surface");
   const input = document.getElementById("search-input");
+  surface.inert = false;
+  surface.classList.add("is-open");
+  surface.setAttribute("aria-hidden", "false");
+  document.getElementById("search-toggle").setAttribute("aria-expanded", "true");
+  input.setAttribute("aria-expanded", "true");
   input.focus();
   input.select();
+}
+
+function closeSearch() {
+  if (!searchOpen) return;
+  searchOpen = false;
+  const surface = document.getElementById("search-surface");
+  const input = document.getElementById("search-input");
+  surface.classList.remove("is-open");
+  surface.setAttribute("aria-hidden", "true");
+  document.getElementById("search-toggle").setAttribute("aria-expanded", "false");
+  input.setAttribute("aria-expanded", "false");
+  document.getElementById("search-toggle").focus();
+  surface.inert = true;
+}
+
+function clearResults() {
+  document.getElementById("search-results").replaceChildren();
+}
+
+function showSearchSkeleton() {
+  const list = document.getElementById("search-results");
+  list.replaceChildren();
+  for (let index = 0; index < 3; index += 1) {
+    const row = document.createElement("div");
+    row.className = "sk sk-result";
+    list.append(row);
+  }
 }
 
 function renderResults(places) {
   const list = document.getElementById("search-results");
   list.replaceChildren();
-  for (const place of places) {
+  places.forEach((place, index) => {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "result-item";
+    button.id = `place-option-${index}`;
+    button.setAttribute("role", "option");
+    button.setAttribute("aria-selected", "false");
     const name = document.createElement("span");
     name.className = "result-name";
     name.textContent = place.name;
@@ -92,13 +136,29 @@ function renderResults(places) {
       choosePlace(place);
     });
     list.append(button);
+  });
+}
+
+function moveResultFocus(delta) {
+  const items = [...document.querySelectorAll("#search-results .result-item")];
+  if (!items.length) return;
+  const current = items.indexOf(document.activeElement);
+  if (current === -1) {
+    items[delta > 0 ? 0 : items.length - 1].focus();
+    return;
   }
+  const next = current + delta;
+  if (next < 0) {
+    document.getElementById("search-input").focus();
+    return;
+  }
+  items[next % items.length].focus();
 }
 
 async function refreshWeather(location) {
   const id = ++requestSerial;
   const showingData = !document.getElementById("weather-data").hidden;
-  if (!showingData) showWeatherEmpty("正在获取天气…");
+  if (!showingData) showSkeleton();
   try {
     const result = await window.widget.getWeather(location);
     if (id !== requestSerial) return;
@@ -107,62 +167,106 @@ async function refreshWeather(location) {
       setStatus(result.message, Boolean(result.stale));
       return;
     }
-    showWeatherEmpty("天气获取失败");
-    setStatus(result.message || "天气获取失败", true);
+    showWeatherEmpty("获取失败");
+    setStatus(result.message || "获取失败", true);
   } catch {
     if (id !== requestSerial) return;
-    showWeatherEmpty("天气获取失败");
-    setStatus("天气获取失败", true);
+    showWeatherEmpty("获取失败");
+    setStatus("获取失败", true);
   }
 }
 
 async function choosePlace(place) {
-  showMainView();
+  closeSearch();
   const saved = await window.widget.saveLocation(place);
   if (!saved || !saved.ok) {
-    showWeatherEmpty("天气获取失败");
-    setStatus("天气获取失败", true);
+    showWeatherEmpty("获取失败");
+    setStatus("获取失败", true);
     return;
   }
   currentLocation = saved.location;
   renderLocation(currentLocation);
   if (saved.weather) renderWeather(saved.weather, { stale: false });
-  else showWeatherEmpty("正在获取天气…");
+  else showSkeleton();
   await refreshWeather(currentLocation);
 }
 
+async function runSearch(query) {
+  const message = document.getElementById("search-message");
+  const button = document.getElementById("search-button");
+  message.textContent = "";
+  if (!query) {
+    clearResults();
+    message.textContent = "没有结果";
+    return;
+  }
+  if (!window.widget || typeof window.widget.searchPlaces !== "function") {
+    clearResults();
+    message.textContent = "搜索失败";
+    return;
+  }
+  button.disabled = true;
+  showSearchSkeleton();
+  try {
+    const response = await window.widget.searchPlaces(query);
+    if (!response || response.ok !== true) {
+      clearResults();
+      message.textContent = (response && response.message) || "搜索失败";
+      return;
+    }
+    if (!Array.isArray(response.places) || !response.places.length) {
+      clearResults();
+      message.textContent = "没有结果";
+      return;
+    }
+    message.textContent = "";
+    renderResults(response.places);
+  } catch {
+    clearResults();
+    message.textContent = "搜索失败";
+  } finally {
+    button.disabled = false;
+  }
+}
+
 function bindUi() {
-  document.getElementById("search-toggle").addEventListener("click", showSearchView);
-  document.getElementById("search-back").addEventListener("click", showMainView);
+  const input = document.getElementById("search-input");
+  const surface = document.getElementById("search-surface");
+  document.getElementById("search-toggle").addEventListener("click", openSearch);
   document.getElementById("close-button").addEventListener("click", () => {
     if (window.widget) window.widget.close();
   });
-  document.getElementById("search-form").addEventListener("submit", async (event) => {
+  input.addEventListener("compositionstart", () => {
+    composing = true;
+  });
+  input.addEventListener("compositionend", () => {
+    composing = false;
+  });
+  document.getElementById("search-form").addEventListener("submit", (event) => {
     event.preventDefault();
-    const input = document.getElementById("search-input");
-    const button = document.getElementById("search-button");
-    const message = document.getElementById("search-message");
-    const query = input.value.trim();
-    message.textContent = "";
-    document.getElementById("search-results").replaceChildren();
-    if (!query) {
-      message.textContent = "没有找到相关地点";
+    if (composing || event.isComposing) return;
+    runSearch(input.value.trim());
+  });
+  surface.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closeSearch();
       return;
     }
-    if (!window.widget) return;
-    button.disabled = true;
-    try {
-      const response = await window.widget.searchPlaces(query);
-      if (!response.ok) {
-        message.textContent = response.message || "没有找到相关地点";
-        return;
-      }
-      renderResults(response.places);
-    } catch {
-      message.textContent = "地点搜索失败";
-    } finally {
-      button.disabled = false;
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      if (!document.querySelector("#search-results .result-item")) return;
+      event.preventDefault();
+      moveResultFocus(event.key === "ArrowDown" ? 1 : -1);
     }
+  });
+  surface.addEventListener("focusin", (event) => {
+    for (const item of document.querySelectorAll("#search-results .result-item")) {
+      item.setAttribute("aria-selected", item === event.target ? "true" : "false");
+    }
+  });
+  document.querySelector(".body").addEventListener("pointerdown", (event) => {
+    if (!searchOpen || event.target.closest("#search-surface")) return;
+    closeSearch();
   });
 }
 
@@ -177,6 +281,7 @@ async function boot() {
       currentLocation = state.location;
       renderLocation(state.location);
       if (state.weather) renderWeather(state.weather, { stale: false });
+      else showSkeleton();
       await refreshWeather(state.location);
     }
   } finally {

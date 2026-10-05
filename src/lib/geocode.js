@@ -124,7 +124,7 @@ function buildSearchUrl(query) {
   return url.toString();
 }
 
-async function searchPlaces(query, { fetchImpl = globalThis.fetch, userAgent } = {}) {
+async function searchPlaces(query, { fetchImpl = globalThis.fetch, userAgent, signal } = {}) {
   const q = String(query || "").trim().slice(0, 80);
   if (!q) return [];
   const response = await fetchImpl(buildSearchUrl(q), {
@@ -133,6 +133,7 @@ async function searchPlaces(query, { fetchImpl = globalThis.fetch, userAgent } =
       "Accept-Language": "zh-CN",
       "User-Agent": userAgent || "tianqi-widget/1.0 (desktop weather widget)",
     },
+    signal,
   });
   if (!response.ok) {
     const error = new Error("search failed");
