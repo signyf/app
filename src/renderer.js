@@ -1,5 +1,5 @@
 const { getAlmanac, formatActivities } = require("./lib/almanac");
-const { clothingTip } = require("./lib/clothing");
+const { clothingTip, outdoorAdvice, humidityAdvice } = require("./lib/clothing");
 const {
   formatHumidity,
   formatTemperature,
@@ -69,6 +69,8 @@ function renderWeather(weather, { stale = false } = {}) {
   const clothing = document.getElementById("clothing");
   clothing.hidden = !tip;
   clothing.textContent = tip || "";
+  document.getElementById("outdoor").textContent = outdoorAdvice(weather.uvIndex);
+  document.getElementById("humidity-advice").textContent = humidityAdvice(weather.humidity);
   document.getElementById("stale-tag").hidden = !stale;
 }
 
