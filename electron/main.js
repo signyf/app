@@ -5,10 +5,12 @@ const { app, BrowserWindow, Menu, dialog, ipcMain, screen, session, nativeTheme 
 const { createStore, normalizeLocation } = require("./state");
 const { initialPosition } = require("./placement");
 const { importLegacyKey, normalizeAmapKey, readSettings, writeSettings } = require("./settings");
+const { loginItemSettings, loginTarget, shouldApplyLoginItem } = require("./launch");
+const { PANEL_WIDTH, PANEL_HEIGHT, displayForBounds, createDockSession } = require("./dock");
 const { searchPlaces } = require("../src/lib/geocode");
 const { fetchWeatherPayload, resolveWeatherView, samePlace } = require("../src/lib/weather");
 
-const USER_AGENT = "tianqi-widget/1.6 (desktop weather widget)";
+const USER_AGENT = "tianqi-widget/1.7 (desktop weather widget)";
 
 function preloadPath() {
   const packed = path.join(__dirname, "preload.js");
@@ -74,7 +76,17 @@ function currentAmapKey() {
   }
 }
 
-function registerIpc(store) {
+function applyLaunchAtLogin(enabled) {
+  if (!shouldApplyLoginItem(process.platform)) return;
+  try {
+    const target = loginTarget(process.env, process.execPath);
+    app.setLoginItemSettings(loginItemSettings(enabled === true, target));
+  } catch (error) {
+    console.error(error && error.message ? error.message : "开机启动设置失败");
+  }
+}
+
+function registerIpc(store, dock) {
   ipcMain.handle("state:get", () => {
     const state = store.load();
     return { location: state.location, weather: state.weather };
@@ -153,31 +165,152 @@ function registerIpc(store) {
 
   ipcMain.handle("settings:get", () => {
     const settings = ensureSettings();
-    return { amapKey: settings.amapKey };
+    return { amapKey: settings.amapKey, launchAtLogin: settings.launchAtLogin === true };
   });
 
   ipcMain.handle("settings:save", (_event, payload) => {
-    const amapKey = normalizeAmapKey(payload && payload.amapKey);
-    const saved = writeSettings(settingsFile(), { amapKey, legacyChecked: true });
-    return { ok: true, amapKey: saved.amapKey };
+    const current = ensureSettings();
+    const hasKey = Boolean(payload) && Object.prototype.hasOwnProperty.call(payload, "amapKey");
+    const amapKey = hasKey ? normalizeAmapKey(payload.amapKey) : current.amapKey;
+    const launchAtLogin = payload && typeof payload.launchAtLogin === "boolean"
+      ? payload.launchAtLogin
+      : current.launchAtLogin === true;
+    const saved = writeSettings(settingsFile(), { amapKey, legacyChecked: true, launchAtLogin });
+    applyLaunchAtLogin(saved.launchAtLogin);
+    return { ok: true, amapKey: saved.amapKey, launchAtLogin: saved.launchAtLogin };
+  });
+
+  ipcMain.handle("dock:state", () => dock.view());
+  ipcMain.handle("dock:pointer", (_event, inside) => dock.pointer(Boolean(inside)));
+  ipcMain.handle("dock:open", () => dock.open());
+  ipcMain.handle("dock:collapse", () => dock.collapse());
+  ipcMain.handle("dock:move", (_event, point) => {
+    if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) return dock.view();
+    return dock.move(point);
   });
 }
 
-function attachPositionPersistence(win, store) {
-  let moveTimer = null;
-  const savePosition = () => {
-    if (win.isDestroyed()) return;
-    const [x, y] = win.getPosition();
-    store.update((current) => ({ ...current, window: { x, y } }));
+function createDockBinding() {
+  const session = createDockSession();
+  let win = null;
+  let store = null;
+  let ignoreMoves = 0;
+  let snapTimer = null;
+  let hoverTimer = null;
+  let leaveTimer = null;
+  let persistTimer = null;
+
+  function currentDisplay(bounds) {
+    const displays = screen.getAllDisplays();
+    return displayForBounds(bounds, displays) || displays[0] || null;
+  }
+
+  function remember() {
+    if (!store || !win || win.isDestroyed()) return;
+    const bounds = win.getBounds();
+    const view = session.view();
+    store.update((current) => ({
+      ...current,
+      window: {
+        x: bounds.x,
+        y: bounds.y,
+        edge: view.edge,
+        anchor: Number.isFinite(view.anchor) ? Math.round(view.anchor) : null,
+      },
+    }));
+  }
+
+  function publish() {
+    const view = session.view();
+    if (win && !win.isDestroyed()) {
+      const display = currentDisplay(win.getBounds());
+      const next = session.place(display);
+      if (next) {
+        ignoreMoves += 1;
+        win.setBounds(next);
+        setTimeout(() => {
+          ignoreMoves = Math.max(0, ignoreMoves - 1);
+        }, 300);
+      }
+      if (!win.webContents.isLoading()) win.webContents.send("dock:mode", view);
+    }
+    clearTimeout(persistTimer);
+    persistTimer = setTimeout(remember, 200);
+    return view;
+  }
+
+  return {
+    startupBounds(saved) {
+      const display = saved
+        ? currentDisplay({ x: saved.x, y: saved.y, width: PANEL_WIDTH, height: PANEL_HEIGHT })
+        : screen.getAllDisplays()[0] || null;
+      session.restore(saved, display);
+      return session.place(display);
+    },
+    attach(nextWindow, nextStore) {
+      win = nextWindow;
+      store = nextStore;
+      win.on("move", () => {
+        if (ignoreMoves > 0) return;
+        clearTimeout(snapTimer);
+        snapTimer = setTimeout(() => {
+          if (!win || win.isDestroyed() || ignoreMoves > 0) return;
+          session.snap(win.getBounds(), currentDisplay(win.getBounds()));
+          publish();
+        }, 180);
+      });
+      win.on("close", () => {
+        clearTimeout(snapTimer);
+        clearTimeout(persistTimer);
+        remember();
+      });
+      const send = () => {
+        if (!win.isDestroyed()) win.webContents.send("dock:mode", session.view());
+      };
+      if (win.webContents.isLoading()) win.webContents.once("did-finish-load", send);
+      else send();
+    },
+    view() {
+      return session.view();
+    },
+    pointer(inside) {
+      clearTimeout(hoverTimer);
+      clearTimeout(leaveTimer);
+      if (inside) {
+        hoverTimer = setTimeout(() => {
+          session.hover();
+          publish();
+        }, 280);
+      } else {
+        leaveTimer = setTimeout(() => {
+          session.leave();
+          publish();
+        }, 500);
+      }
+      return session.view();
+    },
+    open() {
+      clearTimeout(hoverTimer);
+      clearTimeout(leaveTimer);
+      session.open();
+      return publish();
+    },
+    collapse() {
+      clearTimeout(hoverTimer);
+      clearTimeout(leaveTimer);
+      const bounds = win && !win.isDestroyed() ? win.getBounds() : null;
+      const display = bounds ? currentDisplay(bounds) : (screen.getAllDisplays()[0] || null);
+      session.collapseNow(bounds, display);
+      return publish();
+    },
+    move(point) {
+      clearTimeout(hoverTimer);
+      clearTimeout(leaveTimer);
+      const display = currentDisplay({ x: point.x, y: point.y, width: 1, height: 1 });
+      session.drag(point, display);
+      return publish();
+    },
   };
-  win.on("move", () => {
-    clearTimeout(moveTimer);
-    moveTimer = setTimeout(savePosition, 250);
-  });
-  win.on("close", () => {
-    clearTimeout(moveTimer);
-    savePosition();
-  });
 }
 
 async function captureWhenReady(win, file) {
@@ -205,19 +338,21 @@ async function captureWhenReady(win, file) {
   app.quit();
 }
 
-function windowOptions(store, mica) {
+function windowOptions(store, mica, dockBounds) {
   const saved = store.load();
-  const position = initialPosition(saved.window, screen.getAllDisplays());
+  const position = dockBounds ? null : initialPosition(saved.window, screen.getAllDisplays());
   const options = {
-    width: 360,
-    height: 508,
+    width: dockBounds ? dockBounds.width : PANEL_WIDTH,
+    height: dockBounds ? dockBounds.height : PANEL_HEIGHT,
     frame: false,
     resizable: false,
     maximizable: false,
     fullscreenable: false,
     show: true,
+    alwaysOnTop: true,
+    transparent: true,
     title: "天气小挂件",
-    backgroundColor: mica ? "#00000000" : solidBackground(),
+    backgroundColor: "#00000000",
     autoHideMenuBar: true,
     webPreferences: {
       preload: preloadPath(),
@@ -227,23 +362,27 @@ function windowOptions(store, mica) {
     },
   };
   if (mica) options.backgroundMaterial = "mica";
-  if (Number.isInteger(position.x) && Number.isInteger(position.y)) {
+  if (dockBounds) {
+    options.x = dockBounds.x;
+    options.y = dockBounds.y;
+  } else if (position && Number.isInteger(position.x) && Number.isInteger(position.y)) {
     options.x = position.x;
     options.y = position.y;
   }
   return options;
 }
 
-function createWindow(store) {
+function createWindow(store, dock) {
+  const dockBounds = dock.startupBounds(store.load().window);
   let win;
   try {
-    win = new BrowserWindow(windowOptions(store, process.platform === "win32"));
+    win = new BrowserWindow(windowOptions(store, process.platform === "win32", dockBounds));
   } catch (error) {
     console.error(error && error.message ? error.message : error);
-    win = new BrowserWindow(windowOptions(store, false));
+    win = new BrowserWindow(windowOptions(store, false, dockBounds));
   }
   win.removeMenu();
-  attachPositionPersistence(win, store);
+  dock.attach(win, store);
   const showWindow = () => {
     if (!win.isDestroyed() && !win.isVisible()) win.show();
   };
@@ -287,13 +426,15 @@ app.whenReady().then(() => {
     if (process.platform !== "win32") {
       nativeTheme.on("updated", () => {
         for (const win of BrowserWindow.getAllWindows()) {
-          win.setBackgroundColor(solidBackground());
+          if (!win.isDestroyed()) win.setBackgroundColor("#00000000");
         }
       });
     }
     const store = createStore(path.join(app.getPath("userData"), "widget-state.json"));
-    registerIpc(store);
-    createWindow(store);
+    applyLaunchAtLogin(ensureSettings().launchAtLogin);
+    const dock = createDockBinding();
+    registerIpc(store, dock);
+    createWindow(store, dock);
   } catch (error) {
     showStartupError(error);
   }

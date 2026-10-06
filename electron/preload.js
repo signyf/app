@@ -15,5 +15,13 @@ contextBridge.exposeInMainWorld("widget", {
   getWeather: (location) => ipcRenderer.invoke("weather:get", location),
   getSettings: () => ipcRenderer.invoke("settings:get"),
   saveSettings: (settings) => ipcRenderer.invoke("settings:save", settings),
+  dockState: () => ipcRenderer.invoke("dock:state"),
+  dockPointer: (inside) => ipcRenderer.invoke("dock:pointer", inside),
+  expandDock: () => ipcRenderer.invoke("dock:open"),
+  collapseDock: () => ipcRenderer.invoke("dock:collapse"),
+  moveBall: (x, y) => ipcRenderer.invoke("dock:move", { x, y }),
+  onDockMode: (callback) => {
+    ipcRenderer.on("dock:mode", (_event, state) => callback(state));
+  },
   close: () => ipcRenderer.invoke("window:close"),
 });

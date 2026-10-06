@@ -53,6 +53,8 @@
 
 * { box-sizing: border-box; }
 
+html:not([data-dock]) body { visibility: hidden; }
+
 html, body {
   margin: 0;
   height: 100%;
@@ -61,6 +63,11 @@ html, body {
   font-family: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
   font-size: 14px;
   line-height: 20px;
+}
+
+html[data-dock="ball"],
+html[data-dock="ball"] body {
+  background: transparent;
 }
 
 html[data-material="mica"],
@@ -98,7 +105,7 @@ button:disabled { cursor: default; }
   -webkit-app-region: drag;
 }
 
-button, input, .search-surface, .results, .result-item, .settings-hint {
+button, input, .search-surface, .results, .result-item, .settings-hint, .launch-row, .edge-ball {
   -webkit-app-region: no-drag;
   user-select: auto;
 }
@@ -149,6 +156,59 @@ button, input, .search-surface, .results, .result-item, .settings-hint {
 
 .text-button:hover { background: var(--fill-hover); }
 .text-button:active { background: var(--fill-pressed); }
+
+.icon-button {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  color: var(--text);
+  border-radius: 4px;
+  transition: background-color var(--motion-fast) var(--ease);
+}
+
+.icon-button:hover { background: var(--fill-hover); }
+.icon-button:active { background: var(--fill-pressed); }
+
+.edge-ball {
+  display: none;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--stroke-strong);
+  border-radius: 50%;
+  background: var(--bg);
+  color: var(--text);
+  box-shadow: var(--shadow);
+  place-items: center;
+  font-size: 18px;
+  font-weight: 500;
+  line-height: 20px;
+  cursor: pointer;
+}
+
+html[data-dock="ball"] .widget { display: none; }
+html[data-dock="ball"] .edge-ball { display: grid; }
+html[data-dock="panel"] .edge-ball { display: none; }
+
+.launch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0;
+  color: var(--text);
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.launch-row input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+}
 
 .close-button {
   width: 32px;

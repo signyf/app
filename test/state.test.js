@@ -38,7 +38,7 @@ test("store persists a selected location and drops a corrupt file", () => {
   assert.equal(loaded.location.name, "天通苑 · 昌平区");
   assert.equal(loaded.weather.uvIndex, null);
   assert.equal(loaded.weather.temperature, 21);
-  assert.deepEqual(loaded.window, { x: 12, y: 40 });
+  assert.deepEqual(loaded.window, { x: 12, y: 40, edge: null, anchor: null });
 
   fs.writeFileSync(file, "{", "utf8");
   assert.deepEqual(createStore(file).load(), { location: null, weather: null, window: null });

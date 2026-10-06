@@ -71,6 +71,8 @@ function renderWeather(weather, { stale = false } = {}) {
   clothing.textContent = tip || "";
   document.getElementById("outdoor").textContent = outdoorAdvice(weather.uvIndex);
   document.getElementById("humidity-advice").textContent = humidityAdvice(weather.humidity);
+  const shown = formatTemperature(weather.temperature);
+  document.getElementById("ball-temp").textContent = shown === "--" ? "--" : `${shown}°`;
   document.getElementById("stale-tag").hidden = !stale;
 }
 
@@ -112,6 +114,7 @@ function openSettings() {
   window.widget.getSettings().then((settings) => {
     if (!settingsOpen) return;
     input.value = settings && typeof settings.amapKey === "string" ? settings.amapKey : "";
+    document.getElementById("launch-toggle").checked = Boolean(settings && settings.launchAtLogin);
   }).catch(() => {
     if (settingsOpen) document.getElementById("settings-message").textContent = "没有读到已保存的 Key";
   });
@@ -237,6 +240,7 @@ async function refreshWeather(location) {
 
 async function choosePlace(place) {
   closeSearch();
+  clearResults();
   const saved = await window.widget.saveLocation(place);
   if (!saved || !saved.ok) {
     showWeatherEmpty("获取失败");
@@ -247,6 +251,7 @@ async function choosePlace(place) {
   renderLocation(currentLocation);
   if (saved.weather) renderWeather(saved.weather, { stale: false });
   else showSkeleton();
+  if (window.widget.collapseDock) window.widget.collapseDock();
   await refreshWeather(currentLocation);
 }
 
@@ -301,6 +306,47 @@ function bindUi() {
     document.getElementById("amap-key-input").value = "";
     saveAmapKey("");
   });
+  document.getElementById("launch-toggle").addEventListener("change", async (event) => {
+    if (!window.widget || typeof window.widget.saveSettings !== "function") return;
+    try {
+      const response = await window.widget.saveSettings({ launchAtLogin: event.target.checked });
+      if (!response || response.ok !== true) throw new Error("save failed");
+    } catch {
+      event.target.checked = !event.target.checked;
+      document.getElementById("settings-message").textContent = "保存失败";
+    }
+  });
+  const ball = document.getElementById("edge-ball");
+  let ballDrag = false;
+  let ballMoved = false;
+  let ballStart = null;
+  ball.addEventListener("pointerdown", (event) => {
+    ballDrag = true;
+    ballMoved = false;
+    ballStart = { x: event.screenX, y: event.screenY };
+    ball.setPointerCapture(event.pointerId);
+  });
+  ball.addEventListener("pointermove", (event) => {
+    if (!ballDrag || !ballStart || !window.widget || !window.widget.moveBall) return;
+    if (Math.hypot(event.screenX - ballStart.x, event.screenY - ballStart.y) < 5) return;
+    ballMoved = true;
+    window.widget.moveBall(event.screenX, event.screenY);
+  });
+  ball.addEventListener("pointerup", () => {
+    const moved = ballMoved;
+    ballDrag = false;
+    ballMoved = false;
+    ballStart = null;
+    if (!moved && window.widget && window.widget.expandDock) window.widget.expandDock();
+  });
+  window.addEventListener("pointerenter", () => {
+    if (ballDrag || !window.widget || !window.widget.dockPointer) return;
+    window.widget.dockPointer(true);
+  });
+  window.addEventListener("pointerleave", () => {
+    if (ballDrag || !window.widget || !window.widget.dockPointer) return;
+    window.widget.dockPointer(false);
+  });
   document.getElementById("settings-surface").addEventListener("keydown", (event) => {
     if (event.key !== "Escape") return;
     event.preventDefault();
@@ -343,12 +389,19 @@ function bindUi() {
   });
 }
 
+function applyDockMode(state) {
+  document.documentElement.dataset.dock = state && state.ball ? "ball" : "panel";
+}
+
 async function boot() {
   renderAlmanac(new Date());
   setInterval(() => renderAlmanac(new Date()), 60 * 1000);
   bindUi();
   try {
     if (!window.widget) return;
+    if (window.widget.onDockMode) window.widget.onDockMode(applyDockMode);
+    if (window.widget.dockState) applyDockMode(await window.widget.dockState());
+    else document.documentElement.dataset.dock = "panel";
     const state = await window.widget.getState();
     if (state.location) {
       currentLocation = state.location;
@@ -358,6 +411,7 @@ async function boot() {
       await refreshWeather(state.location);
     }
   } finally {
+    if (!document.documentElement.dataset.dock) document.documentElement.dataset.dock = "panel";
     document.body.dataset.ready = "1";
   }
   setInterval(() => {

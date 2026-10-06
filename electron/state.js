@@ -34,7 +34,16 @@ function normalizeWindow(value) {
   const x = Number(value.x);
   const y = Number(value.y);
   if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
-  return { x: Math.round(x), y: Math.round(y) };
+  const edge = value.edge === "left" || value.edge === "right" || value.edge === "top" || value.edge === "bottom"
+    ? value.edge
+    : null;
+  const anchor = Number(value.anchor);
+  return {
+    x: Math.round(x),
+    y: Math.round(y),
+    edge,
+    anchor: Number.isFinite(anchor) ? Math.round(anchor) : null,
+  };
 }
 
 function emptyState() {
