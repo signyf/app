@@ -394,7 +394,14 @@ function bindUi() {
 }
 
 function applyDockMode(state) {
-  document.documentElement.dataset.dock = state && state.ball ? "ball" : "panel";
+  const root = document.documentElement;
+  root.dataset.dock = state && state.ball ? "ball" : "panel";
+  root.dataset.edge = state && state.edge ? state.edge : "";
+  root.dataset.tuck = state && state.tucked ? "1" : "0";
+  if (state && Number.isFinite(state.ballSize) && Number.isFinite(state.ballPeek)) {
+    root.style.setProperty("--ball", `${state.ballSize}px`);
+    root.style.setProperty("--peek", `${state.ballPeek}px`);
+  }
 }
 
 async function boot() {

@@ -1,7 +1,7 @@
 const PANEL_WIDTH = 360;
 const PANEL_HEIGHT = 508;
 const BALL_SIZE = 72;
-const BALL_PEEK = 18;
+const BALL_PEEK = 20;
 const EDGE_PX = 128;
 
 function clamp(value, min, max) {
@@ -90,15 +90,16 @@ function ballBounds(edge, anchor, display, tucked = true) {
   if (!area || !edge) return null;
   const size = Math.min(BALL_SIZE, area.width, area.height);
   const peek = Math.min(BALL_PEEK, size);
-  const hidden = tucked ? size - peek : 0;
   if (edge === "left" || edge === "right") {
+    const span = tucked ? peek : size;
     const y = clamp(anchor - size / 2, area.y, area.y + area.height - size);
-    const x = edge === "left" ? area.x - hidden : area.x + area.width - size + hidden;
-    return { x: Math.round(x), y: Math.round(y), width: size, height: size };
+    const x = edge === "left" ? area.x : area.x + area.width - span;
+    return { x: Math.round(x), y: Math.round(y), width: span, height: size };
   }
+  const span = tucked ? peek : size;
   const x = clamp(anchor - size / 2, area.x, area.x + area.width - size);
-  const y = edge === "top" ? area.y - hidden : area.y + area.height - size + hidden;
-  return { x: Math.round(x), y: Math.round(y), width: size, height: size };
+  const y = edge === "top" ? area.y : area.y + area.height - span;
+  return { x: Math.round(x), y: Math.round(y), width: size, height: span };
 }
 
 function panelBounds(edge, anchor, display) {
@@ -131,6 +132,8 @@ function createDockSession() {
       emerged,
       ball: Boolean(edge) && !expanded,
       tucked: Boolean(edge) && !expanded && !emerged,
+      ballSize: BALL_SIZE,
+      ballPeek: BALL_PEEK,
       suppressHover,
     };
   }
