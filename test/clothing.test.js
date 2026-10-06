@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { clothingTip } = require("../src/lib/clothing");
+const { clothingTip, outdoorAdvice } = require("../src/lib/clothing");
 
 test("clothing tips follow temperature bands", () => {
   const cases = [
@@ -52,4 +52,24 @@ test("rain, snow, freezing rain and strong UV extend the tip", () => {
     "天气偏热，短袖即可",
   );
   assert.equal(clothingTip({ weatherCode: 61 }), "");
+});
+
+test("outdoor advice follows each UV band and does not invent a missing value", () => {
+  assert.equal(outdoorAdvice(0), "适合外出");
+  assert.equal(outdoorAdvice(2), "适合外出");
+  assert.equal(outdoorAdvice(2.9), "适合外出");
+  assert.equal(outdoorAdvice(3), "可以外出，注意防晒");
+  assert.equal(outdoorAdvice(5), "可以外出，注意防晒");
+  assert.equal(outdoorAdvice(5.9), "可以外出，注意防晒");
+  assert.equal(outdoorAdvice(6), "中午少出门，戴帽并涂防晒");
+  assert.equal(outdoorAdvice(7), "中午少出门，戴帽并涂防晒");
+  assert.equal(outdoorAdvice(7.9), "中午少出门，戴帽并涂防晒");
+  assert.equal(outdoorAdvice(8), "不适合长时间在外晒");
+  assert.equal(outdoorAdvice(10), "不适合长时间在外晒");
+  assert.equal(outdoorAdvice(10.9), "不适合长时间在外晒");
+  assert.equal(outdoorAdvice(11), "不适合外出暴晒");
+  assert.equal(outdoorAdvice(14), "不适合外出暴晒");
+  assert.equal(outdoorAdvice(null), "暂无紫外线");
+  assert.equal(outdoorAdvice(undefined), "暂无紫外线");
+  assert.equal(outdoorAdvice(Number.NaN), "暂无紫外线");
 });

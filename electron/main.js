@@ -8,7 +8,7 @@ const { importLegacyKey, normalizeAmapKey, readSettings, writeSettings } = requi
 const { searchPlaces } = require("../src/lib/geocode");
 const { fetchWeatherPayload, resolveWeatherView, samePlace } = require("../src/lib/weather");
 
-const USER_AGENT = "tianqi-widget/1.5 (desktop weather widget)";
+const USER_AGENT = "tianqi-widget/1.6 (desktop weather widget)";
 
 function preloadPath() {
   const packed = path.join(__dirname, "preload.js");

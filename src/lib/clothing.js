@@ -30,4 +30,13 @@ function clothingTip({ temperature, weatherCode, uvIndex } = {}) {
   return extra ? `${base}，${extra}` : base;
 }
 
-module.exports = { clothingTip };
+function outdoorAdvice(uvIndex) {
+  if (typeof uvIndex !== "number" || !Number.isFinite(uvIndex) || uvIndex < 0) return "暂无紫外线";
+  if (uvIndex < 3) return "适合外出";
+  if (uvIndex < 6) return "可以外出，注意防晒";
+  if (uvIndex < 8) return "中午少出门，戴帽并涂防晒";
+  if (uvIndex < 11) return "不适合长时间在外晒";
+  return "不适合外出暴晒";
+}
+
+module.exports = { clothingTip, outdoorAdvice };

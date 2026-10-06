@@ -236,6 +236,8 @@ button, input, .search-surface, .results, .result-item, .settings-hint {
   line-height: 20px;
 }
 
+.clothing + .clothing { margin-top: 8px; }
+
 .clothing::before {
   content: "";
   width: 2px;
