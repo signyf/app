@@ -506,6 +506,51 @@ html[data-dock="ball"][data-tuck="1"][data-edge="bottom"] .edge-ball {
 
 .search-submit { flex: 0 0 auto; }
 
+.selected-place {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  min-width: 0;
+}
+
+.selected-label {
+  flex: 0 0 auto;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 4px;
+  background: var(--fill-subtle);
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 20px;
+}
+
+.selected-copy {
+  min-width: 0;
+}
+
+.selected-name,
+.selected-detail {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.selected-name {
+  color: var(--text);
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.selected-detail {
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.selected-detail:empty { display: none; }
+
 .search-message {
   min-height: 20px;
   margin: 0;

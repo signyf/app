@@ -10,7 +10,7 @@ const { PANEL_WIDTH, PANEL_HEIGHT, displayForBounds, createDockSession } = requi
 const { searchPlaces } = require("../src/lib/geocode");
 const { fetchWeatherPayload, resolveWeatherView, samePlace } = require("../src/lib/weather");
 
-const USER_AGENT = "tianqi-widget/1.8 (desktop weather widget)";
+const USER_AGENT = "tianqi-widget/1.9 (desktop weather widget)";
 
 function preloadPath() {
   const packed = path.join(__dirname, "preload.js");
