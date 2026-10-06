@@ -37,6 +37,17 @@ function weatherLabel(code) {
     : "未知";
 }
 
+function weatherMark(code) {
+  if (code == null || code === "") return "cloud";
+  const value = Number(code);
+  if (!Number.isInteger(value)) return "cloud";
+  if (value === 0) return "sun";
+  if (value === 45 || value === 48) return "fog";
+  if ((value >= 51 && value <= 67) || (value >= 80 && value <= 82) || value >= 95) return "rain";
+  if ((value >= 71 && value <= 77) || value === 85 || value === 86) return "snow";
+  return "cloud";
+}
+
 function formatTemperature(value) {
   if (typeof value !== "number" || Number.isNaN(value)) return "--";
   return String(Math.round(value));
@@ -191,4 +202,5 @@ module.exports = {
   resolveWeatherView,
   samePlace,
   weatherLabel,
+  weatherMark,
 };

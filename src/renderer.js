@@ -5,6 +5,7 @@ const {
   formatTemperature,
   formatUv,
   weatherLabel,
+  weatherMark,
 } = require("./lib/weather");
 
 let currentLocation = null;
@@ -30,8 +31,10 @@ function renderAlmanac(date) {
 }
 
 function renderLocation(location) {
-  document.getElementById("place-name").textContent = location ? location.name : "未选择地点";
-  document.getElementById("place-detail").textContent = location && location.detail ? location.detail : "";
+  const chosen = Boolean(location);
+  document.documentElement.dataset.place = chosen ? "set" : "empty";
+  document.getElementById("place-name").textContent = chosen ? location.name : "未选择地点";
+  document.getElementById("place-detail").textContent = chosen && location.detail ? location.detail : "";
 }
 
 function showWeatherEmpty(message) {
@@ -73,6 +76,7 @@ function renderWeather(weather, { stale = false } = {}) {
   document.getElementById("humidity-advice").textContent = humidityAdvice(weather.humidity);
   const shown = formatTemperature(weather.temperature);
   document.getElementById("ball-temp").textContent = shown === "--" ? "--" : `${shown}°`;
+  document.getElementById("ball-mark").dataset.mark = weatherMark(weather.weatherCode);
   document.getElementById("stale-tag").hidden = !stale;
 }
 
@@ -390,7 +394,14 @@ function bindUi() {
 }
 
 function applyDockMode(state) {
-  document.documentElement.dataset.dock = state && state.ball ? "ball" : "panel";
+  const root = document.documentElement;
+  root.dataset.dock = state && state.ball ? "ball" : "panel";
+  root.dataset.edge = state && state.edge ? state.edge : "";
+  root.dataset.tuck = state && state.tucked ? "1" : "0";
+  if (state && Number.isFinite(state.ballSize) && Number.isFinite(state.ballPeek)) {
+    root.style.setProperty("--ball", `${state.ballSize}px`);
+    root.style.setProperty("--peek", `${state.ballPeek}px`);
+  }
 }
 
 async function boot() {
@@ -403,9 +414,9 @@ async function boot() {
     if (window.widget.dockState) applyDockMode(await window.widget.dockState());
     else document.documentElement.dataset.dock = "panel";
     const state = await window.widget.getState();
+    renderLocation(state.location || null);
     if (state.location) {
       currentLocation = state.location;
-      renderLocation(state.location);
       if (state.weather) renderWeather(state.weather, { stale: false });
       else showSkeleton();
       await refreshWeather(state.location);

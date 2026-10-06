@@ -68,6 +68,13 @@ html, body {
 html[data-dock="ball"],
 html[data-dock="ball"] body {
   background: transparent;
+  overflow: hidden;
+}
+
+html[data-dock="ball"] {
+  --ball: 72px;
+  --peek: 20px;
+  --ball-inset: 4px;
 }
 
 html[data-material="mica"],
@@ -144,6 +151,10 @@ button, input, .search-surface, .results, .result-item, .settings-hint, .launch-
 
 .place-detail:empty { display: none; }
 
+html[data-place="set"] .place { display: none; }
+
+html[data-place="set"] #settings-toggle { margin-left: auto; }
+
 .text-button {
   height: 32px;
   padding: 0 8px;
@@ -173,25 +184,79 @@ button, input, .search-surface, .results, .result-item, .settings-hint, .launch-
 
 .edge-ball {
   display: none;
-  width: 100%;
-  height: 100%;
+  position: absolute;
+  width: calc(var(--ball) - 8px);
+  height: calc(var(--ball) - 8px);
   margin: 0;
   padding: 0;
-  border: 1px solid var(--stroke-strong);
+  border: 1px solid rgba(255, 255, 255, 0.82);
   border-radius: 50%;
-  background: var(--bg);
-  color: var(--text);
-  box-shadow: var(--shadow);
+  background:
+    radial-gradient(circle at 32% 28%, rgba(255, 255, 255, 0.46) 0%, rgba(255, 255, 255, 0.12) 42%, rgba(10, 16, 28, 0.22) 100%);
+  backdrop-filter: blur(18px) saturate(1.6);
+  -webkit-backdrop-filter: blur(18px) saturate(1.6);
+  box-shadow:
+    0 8px 18px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    inset 0 -10px 16px rgba(0, 0, 0, 0.18);
+  color: #fff;
   place-items: center;
-  font-size: 18px;
-  font-weight: 500;
-  line-height: 20px;
+  align-content: center;
+  gap: 1px;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 16px;
+  letter-spacing: -0.02em;
+  text-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.95),
+    0 0 2px rgba(0, 0, 0, 1);
   cursor: pointer;
 }
+
+.ball-mark {
+  width: 16px;
+  height: 16px;
+  display: grid;
+  color: #fff;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.85));
+}
+
+.ball-mark .mark { display: none; }
+
+.ball-mark[data-mark="sun"] .mark-sun,
+.ball-mark[data-mark="cloud"] .mark-cloud,
+.ball-mark[data-mark="rain"] .mark-rain,
+.ball-mark[data-mark="snow"] .mark-snow,
+.ball-mark[data-mark="fog"] .mark-fog { display: block; }
 
 html[data-dock="ball"] .widget { display: none; }
 html[data-dock="ball"] .edge-ball { display: grid; }
 html[data-dock="panel"] .edge-ball { display: none; }
+
+html[data-dock="ball"][data-tuck="0"] .edge-ball {
+  left: var(--ball-inset);
+  top: var(--ball-inset);
+}
+
+html[data-dock="ball"][data-tuck="1"][data-edge="left"] .edge-ball {
+  top: var(--ball-inset);
+  left: calc(var(--peek) - (var(--ball) - 8px));
+}
+
+html[data-dock="ball"][data-tuck="1"][data-edge="right"] .edge-ball {
+  top: var(--ball-inset);
+  left: 0;
+}
+
+html[data-dock="ball"][data-tuck="1"][data-edge="top"] .edge-ball {
+  left: var(--ball-inset);
+  top: calc(var(--peek) - (var(--ball) - 8px));
+}
+
+html[data-dock="ball"][data-tuck="1"][data-edge="bottom"] .edge-ball {
+  left: var(--ball-inset);
+  top: 0;
+}
 
 .launch-row {
   display: flex;
