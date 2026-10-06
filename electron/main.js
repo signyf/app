@@ -1,13 +1,14 @@
 const path = require("path");
 const fs = require("fs");
-const { app, BrowserWindow, Menu, ipcMain, screen, session, nativeTheme } = require("electron");
+const { app, BrowserWindow, Menu, dialog, ipcMain, screen, session, nativeTheme } = require("electron");
 
 const { createStore, normalizeLocation } = require("./state");
 const { initialPosition } = require("./placement");
+const { importLegacyKey, normalizeAmapKey, readSettings, writeSettings } = require("./settings");
 const { searchPlaces } = require("../src/lib/geocode");
 const { fetchWeatherPayload, resolveWeatherView, samePlace } = require("../src/lib/weather");
 
-const USER_AGENT = "tianqi-widget/1.3 (desktop weather widget)";
+const USER_AGENT = "tianqi-widget/1.5 (desktop weather widget)";
 
 function preloadPath() {
   const packed = path.join(__dirname, "preload.js");
@@ -22,24 +23,55 @@ function solidBackground() {
   return nativeTheme.shouldUseDarkColors ? "#202020" : "#F3F3F3";
 }
 
-function readAmapKey() {
-  const fromEnv = typeof process.env.AMAP_KEY === "string" ? process.env.AMAP_KEY.trim() : "";
-  if (fromEnv) return fromEnv;
+function showStartupError(error) {
+  const detail = error && error.stack ? String(error.stack) : String(error);
+  console.error(detail);
+  try {
+    dialog.showErrorBox("天气小挂件无法启动", detail);
+  } catch (dialogError) {
+    console.error(dialogError && dialogError.message ? dialogError.message : dialogError);
+  }
+}
+
+function settingsFile() {
+  return path.join(app.getPath("userData"), "widget-settings.json");
+}
+
+function readLegacyAmapText() {
+  const resources = typeof process.resourcesPath === "string" ? process.resourcesPath : "";
   const files = [
-    process.env.AMAP_KEY_FILE,
+    resources && path.join(resources, "amap.key"),
     path.join(process.cwd(), "amap.key"),
     path.join(path.dirname(process.execPath), "amap.key"),
     path.join(app.getPath("userData"), "amap.key"),
   ].filter(Boolean);
   for (const file of files) {
     try {
-      const line = fs.readFileSync(file, "utf8").split(/\r?\n/).map((item) => item.trim()).find(Boolean) || "";
-      if (line && !line.startsWith("#")) return line;
+      const text = fs.readFileSync(file, "utf8");
+      if (normalizeAmapKey(text)) return text;
     } catch {
-      // The key file is optional.
+      // An old key file is optional and is never required.
     }
   }
   return "";
+}
+
+function ensureSettings() {
+  const file = settingsFile();
+  let settings = readSettings(file);
+  if (!settings.legacyChecked) {
+    settings = writeSettings(file, importLegacyKey(settings, readLegacyAmapText()));
+  }
+  return settings;
+}
+
+function currentAmapKey() {
+  try {
+    return ensureSettings().amapKey;
+  } catch (error) {
+    console.error(error && error.message ? error.message : "无法读取高德 Key 设置");
+    return "";
+  }
 }
 
 function registerIpc(store) {
@@ -68,7 +100,7 @@ function registerIpc(store) {
     try {
       const places = await searchPlaces(query, {
         userAgent: USER_AGENT,
-        amapKey: readAmapKey(),
+        amapKey: currentAmapKey(),
       });
       if (!places.length) {
         return { ok: false, places: [], message: "没有结果" };
@@ -118,6 +150,17 @@ function registerIpc(store) {
     const win = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
     if (win) win.close();
   });
+
+  ipcMain.handle("settings:get", () => {
+    const settings = ensureSettings();
+    return { amapKey: settings.amapKey };
+  });
+
+  ipcMain.handle("settings:save", (_event, payload) => {
+    const amapKey = normalizeAmapKey(payload && payload.amapKey);
+    const saved = writeSettings(settingsFile(), { amapKey, legacyChecked: true });
+    return { ok: true, amapKey: saved.amapKey };
+  });
 }
 
 function attachPositionPersistence(win, store) {
@@ -162,10 +205,9 @@ async function captureWhenReady(win, file) {
   app.quit();
 }
 
-function createWindow(store) {
+function windowOptions(store, mica) {
   const saved = store.load();
   const position = initialPosition(saved.window, screen.getAllDisplays());
-  const mica = process.platform === "win32";
   const options = {
     width: 360,
     height: 452,
@@ -173,7 +215,7 @@ function createWindow(store) {
     resizable: false,
     maximizable: false,
     fullscreenable: false,
-    show: false,
+    show: true,
     title: "天气小挂件",
     backgroundColor: mica ? "#00000000" : solidBackground(),
     autoHideMenuBar: true,
@@ -189,20 +231,38 @@ function createWindow(store) {
     options.x = position.x;
     options.y = position.y;
   }
+  return options;
+}
 
-  const win = new BrowserWindow(options);
+function createWindow(store) {
+  let win;
+  try {
+    win = new BrowserWindow(windowOptions(store, process.platform === "win32"));
+  } catch (error) {
+    console.error(error && error.message ? error.message : error);
+    win = new BrowserWindow(windowOptions(store, false));
+  }
   win.removeMenu();
   attachPositionPersistence(win, store);
+  const showWindow = () => {
+    if (!win.isDestroyed() && !win.isVisible()) win.show();
+  };
   win.once("ready-to-show", () => {
-    win.show();
+    showWindow();
     if (process.env.WIDGET_CAPTURE) {
       captureWhenReady(win, process.env.WIDGET_CAPTURE).catch((error) => {
-        console.error(error);
+        showStartupError(error);
         app.exit(1);
       });
     }
   });
+  win.webContents.on("did-fail-load", (_event, code, description, _url, isMainFrame) => {
+    if (!isMainFrame || code === -3) return;
+    showWindow();
+    showStartupError(new Error(`页面没有载入 (${code}) ${description}`));
+  });
   win.loadFile(path.join(__dirname, "../src/index.html"));
+  showWindow();
   return win;
 }
 
@@ -211,23 +271,34 @@ function applyRequestedTheme() {
   if (theme === "light" || theme === "dark") nativeTheme.themeSource = theme;
 }
 
+process.on("uncaughtException", (error) => {
+  showStartupError(error);
+  if (!BrowserWindow.getAllWindows().length) app.quit();
+});
+
 app.whenReady().then(() => {
-  applyRequestedTheme();
-  Menu.setApplicationMenu(null);
-  session.defaultSession.setUserAgent(USER_AGENT);
-  session.defaultSession.setPermissionRequestHandler((_webContents, _permission, callback) => {
-    callback(false);
-  });
-  if (process.platform !== "win32") {
-    nativeTheme.on("updated", () => {
-      for (const win of BrowserWindow.getAllWindows()) {
-        win.setBackgroundColor(solidBackground());
-      }
+  try {
+    applyRequestedTheme();
+    Menu.setApplicationMenu(null);
+    session.defaultSession.setUserAgent(USER_AGENT);
+    session.defaultSession.setPermissionRequestHandler((_webContents, _permission, callback) => {
+      callback(false);
     });
+    if (process.platform !== "win32") {
+      nativeTheme.on("updated", () => {
+        for (const win of BrowserWindow.getAllWindows()) {
+          win.setBackgroundColor(solidBackground());
+        }
+      });
+    }
+    const store = createStore(path.join(app.getPath("userData"), "widget-state.json"));
+    registerIpc(store);
+    createWindow(store);
+  } catch (error) {
+    showStartupError(error);
   }
-  const store = createStore(path.join(app.getPath("userData"), "widget-state.json"));
-  registerIpc(store);
-  createWindow(store);
+}).catch((error) => {
+  showStartupError(error);
 });
 
 app.on("window-all-closed", () => {

@@ -10,6 +10,7 @@ const {
 let currentLocation = null;
 let requestSerial = 0;
 let searchOpen = false;
+let settingsOpen = false;
 let composing = false;
 
 function renderAlmanac(date) {
@@ -72,6 +73,7 @@ function renderWeather(weather, { stale = false } = {}) {
 }
 
 function openSearch() {
+  if (settingsOpen) closeSettings();
   if (searchOpen) {
     closeSearch();
     return;
@@ -86,6 +88,61 @@ function openSearch() {
   input.setAttribute("aria-expanded", "true");
   input.focus();
   input.select();
+}
+
+function openSettings() {
+  if (searchOpen) closeSearch();
+  if (settingsOpen) {
+    closeSettings();
+    return;
+  }
+  settingsOpen = true;
+  const surface = document.getElementById("settings-surface");
+  const input = document.getElementById("amap-key-input");
+  surface.inert = false;
+  surface.classList.add("is-open");
+  surface.setAttribute("aria-hidden", "false");
+  document.getElementById("settings-toggle").setAttribute("aria-expanded", "true");
+  document.getElementById("settings-message").textContent = "";
+  input.focus();
+  input.select();
+  if (!window.widget || typeof window.widget.getSettings !== "function") return;
+  window.widget.getSettings().then((settings) => {
+    if (!settingsOpen) return;
+    input.value = settings && typeof settings.amapKey === "string" ? settings.amapKey : "";
+  }).catch(() => {
+    if (settingsOpen) document.getElementById("settings-message").textContent = "没有读到已保存的 Key";
+  });
+}
+
+function closeSettings() {
+  if (!settingsOpen) return;
+  settingsOpen = false;
+  const surface = document.getElementById("settings-surface");
+  surface.classList.remove("is-open");
+  surface.setAttribute("aria-hidden", "true");
+  document.getElementById("settings-toggle").setAttribute("aria-expanded", "false");
+  document.getElementById("settings-toggle").focus();
+  surface.inert = true;
+}
+
+async function saveAmapKey(value) {
+  const message = document.getElementById("settings-message");
+  if (!window.widget || typeof window.widget.saveSettings !== "function") {
+    message.textContent = "保存失败";
+    return;
+  }
+  try {
+    const response = await window.widget.saveSettings({ amapKey: value });
+    if (!response || response.ok !== true) {
+      message.textContent = "保存失败";
+      return;
+    }
+    document.getElementById("amap-key-input").value = typeof response.amapKey === "string" ? response.amapKey : "";
+    message.textContent = response.amapKey ? "已保存" : "已清除";
+  } catch {
+    message.textContent = "保存失败";
+  }
 }
 
 function closeSearch() {
@@ -233,6 +290,20 @@ function bindUi() {
   const input = document.getElementById("search-input");
   const surface = document.getElementById("search-surface");
   document.getElementById("search-toggle").addEventListener("click", openSearch);
+  document.getElementById("settings-toggle").addEventListener("click", openSettings);
+  document.getElementById("settings-form").addEventListener("submit", (event) => {
+    event.preventDefault();
+    saveAmapKey(document.getElementById("amap-key-input").value);
+  });
+  document.getElementById("settings-clear").addEventListener("click", () => {
+    document.getElementById("amap-key-input").value = "";
+    saveAmapKey("");
+  });
+  document.getElementById("settings-surface").addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") return;
+    event.preventDefault();
+    closeSettings();
+  });
   document.getElementById("close-button").addEventListener("click", () => {
     if (window.widget) window.widget.close();
   });
@@ -265,8 +336,8 @@ function bindUi() {
     }
   });
   document.querySelector(".body").addEventListener("pointerdown", (event) => {
-    if (!searchOpen || event.target.closest("#search-surface")) return;
-    closeSearch();
+    if (searchOpen && !event.target.closest("#search-surface")) closeSearch();
+    if (settingsOpen && !event.target.closest("#settings-surface")) closeSettings();
   });
 }
 
