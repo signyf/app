@@ -4,13 +4,13 @@ const { app, BrowserWindow, Menu, dialog, ipcMain, screen, session, nativeTheme 
 
 const { createStore, normalizeLocation } = require("./state");
 const { initialPosition } = require("./placement");
-const { importLegacyKey, normalizeAmapKey, readSettings, writeSettings } = require("./settings");
+const { importLegacyKey, normalizeAmapKey, normalizeGlassOpacity, readSettings, writeSettings } = require("./settings");
 const { loginItemSettings, loginTarget, shouldApplyLoginItem } = require("./launch");
 const { PANEL_WIDTH, PANEL_HEIGHT, displayForBounds, createDockSession } = require("./dock");
 const { searchPlaces } = require("../src/lib/geocode");
 const { describeWeatherStatus, loadPlaceWeather, resolveWeatherView, samePlace } = require("../src/lib/weather");
 
-const USER_AGENT = "tianqi-widget/1.10 (desktop weather widget)";
+const USER_AGENT = "tianqi-widget/1.11 (desktop weather widget)";
 
 function preloadPath() {
   const packed = path.join(__dirname, "preload.js");
@@ -174,7 +174,11 @@ function registerIpc(store, dock) {
 
   ipcMain.handle("settings:get", () => {
     const settings = ensureSettings();
-    return { amapKey: settings.amapKey, launchAtLogin: settings.launchAtLogin === true };
+    return {
+      amapKey: settings.amapKey,
+      launchAtLogin: settings.launchAtLogin === true,
+      glassOpacity: settings.glassOpacity,
+    };
   });
 
   ipcMain.handle("settings:save", (_event, payload) => {
@@ -184,9 +188,17 @@ function registerIpc(store, dock) {
     const launchAtLogin = payload && typeof payload.launchAtLogin === "boolean"
       ? payload.launchAtLogin
       : current.launchAtLogin === true;
-    const saved = writeSettings(settingsFile(), { amapKey, legacyChecked: true, launchAtLogin });
+    const glassOpacity = payload && Object.prototype.hasOwnProperty.call(payload, "glassOpacity")
+      ? normalizeGlassOpacity(payload.glassOpacity)
+      : normalizeGlassOpacity(current.glassOpacity);
+    const saved = writeSettings(settingsFile(), { amapKey, legacyChecked: true, launchAtLogin, glassOpacity });
     applyLaunchAtLogin(saved.launchAtLogin);
-    return { ok: true, amapKey: saved.amapKey, launchAtLogin: saved.launchAtLogin };
+    return {
+      ok: true,
+      amapKey: saved.amapKey,
+      launchAtLogin: saved.launchAtLogin,
+      glassOpacity: saved.glassOpacity,
+    };
   });
 
   ipcMain.handle("dock:state", () => dock.view());

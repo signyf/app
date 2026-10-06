@@ -11,9 +11,9 @@ const { markForAmapWeather } = require("./lib/amap-weather");
 
 let currentLocation = null;
 let requestSerial = 0;
-let searchOpen = false;
 let settingsOpen = false;
 let composing = false;
+let glassSaveTimer = null;
 
 function renderAlmanac(date) {
   const almanac = getAlmanac(date.getFullYear(), date.getMonth() + 1, date.getDate());
@@ -31,11 +31,34 @@ function renderAlmanac(date) {
   }
 }
 
+function applyGlass(percent) {
+  const number = Math.round(Number(percent));
+  const safe = Number.isFinite(number) ? Math.min(100, Math.max(40, number)) : 70;
+  document.documentElement.style.setProperty("--glass", String(safe / 100));
+  const range = document.getElementById("opacity-range");
+  const label = document.getElementById("opacity-value");
+  if (range) {
+    range.value = String(safe);
+    range.setAttribute("aria-valuenow", String(safe));
+  }
+  if (label) label.textContent = `${safe}%`;
+  return safe;
+}
+
+function queueGlassSave(percent) {
+  const safe = applyGlass(percent);
+  clearTimeout(glassSaveTimer);
+  glassSaveTimer = setTimeout(() => {
+    if (!window.widget || typeof window.widget.saveSettings !== "function") return;
+    window.widget.saveSettings({ glassOpacity: safe }).catch(() => {
+      const message = document.getElementById("settings-message");
+      if (message) message.textContent = "保存失败";
+    });
+  }, 120);
+}
+
 function renderLocation(location) {
   const chosen = Boolean(location);
-  document.documentElement.dataset.place = chosen ? "set" : "empty";
-  document.getElementById("place-name").textContent = chosen ? location.name : "未选择地点";
-  document.getElementById("place-detail").textContent = chosen && location.detail ? location.detail : "";
   const selected = document.getElementById("selected-place");
   const name = document.getElementById("selected-place-name");
   const detail = document.getElementById("selected-place-detail");
@@ -55,7 +78,6 @@ function showWeatherEmpty(message) {
   document.getElementById("weather-empty").textContent = message;
   document.getElementById("weather-skeleton").hidden = true;
   document.getElementById("weather-data").hidden = true;
-  document.getElementById("weather-credit").textContent = "天气 Open-Meteo";
 }
 
 function skyLabel(weather) {
@@ -87,7 +109,6 @@ function renderWeather(weather, { stale = false } = {}) {
   document.getElementById("condition").textContent = skyLabel(weather);
   document.getElementById("humidity").textContent = `湿度 ${formatHumidity(weather.humidity)}`;
   document.getElementById("uv").textContent = `紫外线 ${formatUv(weather.uvIndex)}`;
-  document.getElementById("weather-credit").textContent = weather.source === "amap" ? "天气来自高德" : "天气 Open-Meteo";
   const tip = clothingTip(weather);
   const clothing = document.getElementById("clothing");
   clothing.hidden = !tip;
@@ -102,45 +123,27 @@ function renderWeather(weather, { stale = false } = {}) {
   document.getElementById("stale-tag").hidden = !stale;
 }
 
-function openSearch() {
-  if (settingsOpen) closeSettings();
-  if (searchOpen) {
-    closeSearch();
-    return;
-  }
-  searchOpen = true;
-  const surface = document.getElementById("search-surface");
-  const input = document.getElementById("search-input");
-  surface.inert = false;
-  surface.classList.add("is-open");
-  surface.setAttribute("aria-hidden", "false");
-  document.getElementById("search-toggle").setAttribute("aria-expanded", "true");
-  input.setAttribute("aria-expanded", "true");
-  input.focus();
-  input.select();
-}
-
 function openSettings() {
-  if (searchOpen) closeSearch();
   if (settingsOpen) {
     closeSettings();
     return;
   }
   settingsOpen = true;
+  document.documentElement.dataset.settings = "open";
   const surface = document.getElementById("settings-surface");
-  const input = document.getElementById("amap-key-input");
+  const input = document.getElementById("search-input");
   surface.inert = false;
   surface.classList.add("is-open");
   surface.setAttribute("aria-hidden", "false");
   document.getElementById("settings-toggle").setAttribute("aria-expanded", "true");
   document.getElementById("settings-message").textContent = "";
   input.focus();
-  input.select();
   if (!window.widget || typeof window.widget.getSettings !== "function") return;
   window.widget.getSettings().then((settings) => {
     if (!settingsOpen) return;
-    input.value = settings && typeof settings.amapKey === "string" ? settings.amapKey : "";
+    document.getElementById("amap-key-input").value = settings && typeof settings.amapKey === "string" ? settings.amapKey : "";
     document.getElementById("launch-toggle").checked = Boolean(settings && settings.launchAtLogin);
+    applyGlass(settings && settings.glassOpacity);
   }).catch(() => {
     if (settingsOpen) document.getElementById("settings-message").textContent = "没有读到已保存的 Key";
   });
@@ -149,10 +152,12 @@ function openSettings() {
 function closeSettings() {
   if (!settingsOpen) return;
   settingsOpen = false;
+  delete document.documentElement.dataset.settings;
   const surface = document.getElementById("settings-surface");
   surface.classList.remove("is-open");
   surface.setAttribute("aria-hidden", "true");
   document.getElementById("settings-toggle").setAttribute("aria-expanded", "false");
+  document.getElementById("search-input").setAttribute("aria-expanded", "false");
   document.getElementById("settings-toggle").focus();
   surface.inert = true;
 }
@@ -176,21 +181,9 @@ async function saveAmapKey(value) {
   }
 }
 
-function closeSearch() {
-  if (!searchOpen) return;
-  searchOpen = false;
-  const surface = document.getElementById("search-surface");
-  const input = document.getElementById("search-input");
-  surface.classList.remove("is-open");
-  surface.setAttribute("aria-hidden", "true");
-  document.getElementById("search-toggle").setAttribute("aria-expanded", "false");
-  input.setAttribute("aria-expanded", "false");
-  document.getElementById("search-toggle").focus();
-  surface.inert = true;
-}
-
 function clearResults() {
   document.getElementById("search-results").replaceChildren();
+  document.getElementById("search-input").setAttribute("aria-expanded", "false");
 }
 
 function showSearchSkeleton() {
@@ -265,7 +258,6 @@ async function refreshWeather(location) {
 }
 
 async function choosePlace(place) {
-  closeSearch();
   clearResults();
   const saved = await window.widget.saveLocation(place);
   if (!saved || !saved.ok) {
@@ -277,7 +269,6 @@ async function choosePlace(place) {
   renderLocation(currentLocation);
   if (saved.weather) renderWeather(saved.weather, { stale: false });
   else showSkeleton();
-  if (window.widget.collapseDock) window.widget.collapseDock();
   await refreshWeather(currentLocation);
 }
 
@@ -311,6 +302,7 @@ async function runSearch(query) {
     }
     message.textContent = "";
     renderResults(response.places);
+    document.getElementById("search-input").setAttribute("aria-expanded", "true");
   } catch {
     clearResults();
     message.textContent = "搜索失败";
@@ -321,9 +313,11 @@ async function runSearch(query) {
 
 function bindUi() {
   const input = document.getElementById("search-input");
-  const surface = document.getElementById("search-surface");
-  document.getElementById("search-toggle").addEventListener("click", openSearch);
+  const surface = document.getElementById("settings-surface");
   document.getElementById("settings-toggle").addEventListener("click", openSettings);
+  document.getElementById("opacity-range").addEventListener("input", (event) => {
+    queueGlassSave(event.target.value);
+  });
   document.getElementById("settings-form").addEventListener("submit", (event) => {
     event.preventDefault();
     saveAmapKey(document.getElementById("amap-key-input").value);
@@ -373,11 +367,6 @@ function bindUi() {
     if (ballDrag || !window.widget || !window.widget.dockPointer) return;
     window.widget.dockPointer(false);
   });
-  document.getElementById("settings-surface").addEventListener("keydown", (event) => {
-    if (event.key !== "Escape") return;
-    event.preventDefault();
-    closeSettings();
-  });
   document.getElementById("close-button").addEventListener("click", () => {
     if (window.widget) window.widget.close();
   });
@@ -395,14 +384,14 @@ function bindUi() {
   surface.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
       event.preventDefault();
-      closeSearch();
+      closeSettings();
       return;
     }
-    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-      if (!document.querySelector("#search-results .result-item")) return;
-      event.preventDefault();
-      moveResultFocus(event.key === "ArrowDown" ? 1 : -1);
-    }
+    if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+    const inSearch = event.target === input || event.target.classList.contains("result-item");
+    if (!inSearch || !document.querySelector("#search-results .result-item")) return;
+    event.preventDefault();
+    moveResultFocus(event.key === "ArrowDown" ? 1 : -1);
   });
   surface.addEventListener("focusin", (event) => {
     for (const item of document.querySelectorAll("#search-results .result-item")) {
@@ -410,8 +399,9 @@ function bindUi() {
     }
   });
   document.querySelector(".body").addEventListener("pointerdown", (event) => {
-    if (searchOpen && !event.target.closest("#search-surface")) closeSearch();
-    if (settingsOpen && !event.target.closest("#settings-surface")) closeSettings();
+    if (settingsOpen && !event.target.closest("#settings-surface") && !event.target.closest("#settings-toggle")) {
+      closeSettings();
+    }
   });
 }
 
@@ -435,6 +425,10 @@ async function boot() {
     if (window.widget.onDockMode) window.widget.onDockMode(applyDockMode);
     if (window.widget.dockState) applyDockMode(await window.widget.dockState());
     else document.documentElement.dataset.dock = "panel";
+    if (window.widget.getSettings) {
+      const settings = await window.widget.getSettings();
+      applyGlass(settings && settings.glassOpacity);
+    }
     const state = await window.widget.getState();
     renderLocation(state.location || null);
     if (state.location) {
