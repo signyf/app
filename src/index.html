@@ -109,6 +109,13 @@
           <input id="search-input" type="text" maxlength="80" placeholder="城市或小区" aria-label="地点关键词" autocomplete="off" spellcheck="false" role="combobox" aria-expanded="false" aria-controls="search-results" aria-autocomplete="list" />
           <button id="search-button" class="text-button search-submit" type="submit">搜索</button>
         </form>
+        <p id="selected-place" class="selected-place" hidden>
+          <span class="selected-label">已选</span>
+          <span class="selected-copy">
+            <span id="selected-place-name" class="selected-name"></span>
+            <span id="selected-place-detail" class="selected-detail"></span>
+          </span>
+        </p>
         <p id="search-message" class="search-message" role="status"></p>
         <div id="search-results" class="results" role="listbox" aria-label="地点结果"></div>
       </div>

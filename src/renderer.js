@@ -35,6 +35,18 @@ function renderLocation(location) {
   document.documentElement.dataset.place = chosen ? "set" : "empty";
   document.getElementById("place-name").textContent = chosen ? location.name : "未选择地点";
   document.getElementById("place-detail").textContent = chosen && location.detail ? location.detail : "";
+  const selected = document.getElementById("selected-place");
+  const name = document.getElementById("selected-place-name");
+  const detail = document.getElementById("selected-place-detail");
+  if (!chosen) {
+    selected.hidden = true;
+    name.textContent = "";
+    detail.textContent = "";
+    return;
+  }
+  name.textContent = location.name;
+  detail.textContent = location.detail && location.detail !== location.name ? location.detail : "";
+  selected.hidden = false;
 }
 
 function showWeatherEmpty(message) {
