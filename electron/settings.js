@@ -11,6 +11,16 @@ function normalizeAmapKey(value) {
 const GLASS_MIN = 40;
 const GLASS_MAX = 100;
 const GLASS_DEFAULT = 70;
+const GLASS_RED = 31;
+const GLASS_GREEN = 111;
+const GLASS_BLUE = 229;
+
+function glassBackgroundColor(value) {
+  const percent = normalizeGlassOpacity(value);
+  const alpha = Math.round((percent * 255) / 100);
+  const part = (number) => number.toString(16).padStart(2, "0");
+  return `#${part(alpha)}${part(GLASS_RED)}${part(GLASS_GREEN)}${part(GLASS_BLUE)}`.toUpperCase();
+}
 
 function normalizeGlassOpacity(value) {
   const number = typeof value === "number" ? value : Number(value);
@@ -76,6 +86,7 @@ function importLegacyKey(settings, legacyText) {
 module.exports = {
   normalizeAmapKey,
   normalizeGlassOpacity,
+  glassBackgroundColor,
   readSettings,
   writeSettings,
   importLegacyKey,

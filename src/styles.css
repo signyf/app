@@ -1,20 +1,20 @@
 :root {
-  color-scheme: light;
-  --bg: #f3f3f3;
-  --text: #1a1a1a;
-  --text-secondary: #595959;
-  --stroke: rgba(0, 0, 0, 0.08);
-  --stroke-strong: rgba(0, 0, 0, 0.14);
-  --fill-hover: rgba(0, 0, 0, 0.04);
-  --fill-pressed: rgba(0, 0, 0, 0.08);
-  --fill-subtle: rgba(0, 0, 0, 0.04);
+  color-scheme: dark;
+  --bg: #1f6fe5;
+  --text: #f4f8ff;
+  --text-secondary: rgba(244, 248, 255, 0.84);
+  --stroke: rgba(255, 255, 255, 0.16);
+  --stroke-strong: rgba(255, 255, 255, 0.42);
+  --fill-hover: rgba(255, 255, 255, 0.1);
+  --fill-pressed: rgba(255, 255, 255, 0.16);
+  --fill-subtle: rgba(255, 255, 255, 0.14);
   --glass: 0.7;
-  --tint: 243, 243, 243;
+  --tint: 31, 111, 229;
   --glass-stroke: rgba(255, 255, 255, 0.62);
   --glass-highlight: rgba(255, 255, 255, 0.78);
   --shadow: 0 8px 16px rgba(0, 0, 0, 0.14);
-  --accent: #0f6f8c;
-  --skeleton: rgba(0, 0, 0, 0.06);
+  --accent: #d7ecff;
+  --skeleton: rgba(255, 255, 255, 0.16);
   --skeleton-shine: rgba(255, 255, 255, 0.7);
   --close-hover: #c42b1c;
   --close-pressed: #a4262c;
@@ -30,19 +30,18 @@
 @media (prefers-color-scheme: dark) {
   :root {
     color-scheme: dark;
-    --bg: #202020;
+    --bg: #1f6fe5;
     --text: #ffffff;
     --text-secondary: #d6d6d6;
     --stroke: rgba(255, 255, 255, 0.08);
     --stroke-strong: rgba(255, 255, 255, 0.16);
     --fill-hover: rgba(255, 255, 255, 0.06);
     --fill-pressed: rgba(255, 255, 255, 0.1);
-    --fill-subtle: rgba(255, 255, 255, 0.05);
-    --tint: 32, 32, 32;
-    --glass-stroke: rgba(255, 255, 255, 0.22);
+    --fill-subtle: rgba(255, 255, 255, 0.14);
+    --glass-stroke: rgba(255, 255, 255, 0.55);
     --glass-highlight: rgba(255, 255, 255, 0.16);
     --shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
-    --accent: #8fd4e8;
+    --accent: #d7ecff;
     --skeleton: rgba(255, 255, 255, 0.08);
     --skeleton-shine: rgba(255, 255, 255, 0.16);
     --yi-fg: #d5f3e8;
@@ -78,11 +77,6 @@ html[data-dock="ball"] {
   --ball-inset: 4px;
 }
 
-html[data-material="mica"],
-html[data-material="mica"] body {
-  background: transparent;
-}
-
 button, input { font: inherit; color: inherit; }
 
 button {
@@ -114,8 +108,6 @@ button:disabled { cursor: default; }
   background: rgba(var(--tint), var(--glass));
   border: 1px solid var(--glass-stroke);
   box-shadow: inset 0 1px 0 var(--glass-highlight), var(--shadow);
-  backdrop-filter: blur(28px) saturate(1.5);
-  -webkit-backdrop-filter: blur(28px) saturate(1.5);
   user-select: none;
   -webkit-app-region: drag;
 }
@@ -170,10 +162,8 @@ button, input, .search-surface, .results, .result-item, .settings-hint, .launch-
   border: 1px solid var(--glass-stroke);
   border-radius: 50%;
   background:
-    radial-gradient(circle at 32% 28%, rgba(255, 255, 255, 0.5) 0%, rgba(255, 255, 255, 0.08) 46%, transparent 70%),
+    radial-gradient(circle at 32% 28%, rgba(255, 255, 255, 0.42) 0%, rgba(255, 255, 255, 0.08) 46%, transparent 70%),
     rgba(var(--tint), var(--glass));
-  backdrop-filter: blur(18px) saturate(1.6);
-  -webkit-backdrop-filter: blur(18px) saturate(1.6);
   box-shadow:
     0 8px 18px rgba(0, 0, 0, 0.22),
     inset 0 1px 0 var(--glass-highlight),
@@ -272,14 +262,14 @@ html[data-dock="ball"][data-tuck="1"][data-edge="bottom"] .edge-ball {
 
 .body {
   position: relative;
-  flex: 1;
+  flex: 0 0 auto;
   min-height: 0;
   display: flex;
   flex-direction: column;
   margin-top: 8px;
 }
 
-.weather { min-height: 156px; }
+.weather { min-height: 0; }
 
 .weather-empty {
   margin: 0;
@@ -304,11 +294,7 @@ html[data-dock="ball"][data-tuck="1"][data-edge="bottom"] .edge-ball {
   line-height: 72px;
   letter-spacing: -0.04em;
   font-variant-numeric: tabular-nums;
-  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.55);
-}
-
-@media (prefers-color-scheme: dark) {
-  .temp-value { text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45); }
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
 }
 
 .unit {

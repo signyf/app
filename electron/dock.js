@@ -1,5 +1,5 @@
 const PANEL_WIDTH = 360;
-const PANEL_HEIGHT = 508;
+let panelHeight = 446;
 const BALL_SIZE = 72;
 const BALL_PEEK = 20;
 const EDGE_PX = 128;
@@ -46,7 +46,7 @@ function edgeDistances(bounds, display) {
   const area = workAreaOf(display);
   if (!area || !bounds) return [];
   const width = Number.isFinite(bounds.width) ? bounds.width : PANEL_WIDTH;
-  const height = Number.isFinite(bounds.height) ? bounds.height : PANEL_HEIGHT;
+  const height = Number.isFinite(bounds.height) ? bounds.height : panelHeight;
   return [
     ["left", bounds.x - area.x],
     ["right", area.x + area.width - (bounds.x + width)],
@@ -106,7 +106,7 @@ function panelBounds(edge, anchor, display) {
   const area = workAreaOf(display);
   if (!area || !edge) return null;
   const width = Math.min(PANEL_WIDTH, area.width);
-  const height = Math.min(PANEL_HEIGHT, area.height);
+  const height = Math.min(panelHeight, area.height);
   if (edge === "left" || edge === "right") {
     const y = clamp(anchor - height / 2, area.y, area.y + area.height - height);
     const x = edge === "left" ? area.x : area.x + area.width - width;
@@ -162,7 +162,7 @@ function createDockSession() {
         return view();
       }
       if (saved && Number.isFinite(saved.x) && Number.isFinite(saved.y)) {
-        const guessed = { x: saved.x, y: saved.y, width: PANEL_WIDTH, height: PANEL_HEIGHT };
+        const guessed = { x: saved.x, y: saved.y, width: PANEL_WIDTH, height: panelHeight };
         const found = nearestEdge(guessed, display);
         if (found) park(found, anchorOnEdge(found, guessed));
       }
@@ -237,9 +237,24 @@ function createDockSession() {
   };
 }
 
+function setPanelHeight(value) {
+  const next = Math.round(Number(value));
+  if (!Number.isFinite(next)) return panelHeight;
+  panelHeight = Math.min(640, Math.max(280, next));
+  return panelHeight;
+}
+
+function getPanelHeight() {
+  return panelHeight;
+}
+
 module.exports = {
   PANEL_WIDTH,
-  PANEL_HEIGHT,
+  get PANEL_HEIGHT() {
+    return panelHeight;
+  },
+  setPanelHeight,
+  getPanelHeight,
   BALL_SIZE,
   BALL_PEEK,
   EDGE_PX,

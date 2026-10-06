@@ -1,13 +1,5 @@
 const { contextBridge, ipcRenderer } = require("electron");
 
-try {
-  if (document.documentElement) {
-    document.documentElement.dataset.material = process.platform === "win32" ? "mica" : "solid";
-  }
-} catch {
-  // The page background still follows the window material if this runs too early.
-}
-
 contextBridge.exposeInMainWorld("widget", {
   getState: () => ipcRenderer.invoke("state:get"),
   saveLocation: (location) => ipcRenderer.invoke("location:save", location),
@@ -15,6 +7,8 @@ contextBridge.exposeInMainWorld("widget", {
   getWeather: (location) => ipcRenderer.invoke("weather:get", location),
   getSettings: () => ipcRenderer.invoke("settings:get"),
   saveSettings: (settings) => ipcRenderer.invoke("settings:save", settings),
+  setGlassOpacity: (percent) => ipcRenderer.invoke("window:glass", percent),
+  fitPanel: (height) => ipcRenderer.invoke("window:fit", height),
   dockState: () => ipcRenderer.invoke("dock:state"),
   dockPointer: (inside) => ipcRenderer.invoke("dock:pointer", inside),
   expandDock: () => ipcRenderer.invoke("dock:open"),
