@@ -417,18 +417,9 @@ html[data-dock="ball"][data-tuck="1"][data-edge="bottom"] .edge-ball {
 
 .status.warn { color: var(--text); }
 
-.credits {
-  margin: auto 0 0;
-  padding-top: 8px;
-  color: var(--text-secondary);
-  font-size: 12px;
-  line-height: 16px;
-}
-
 html[data-settings="open"] .weather,
 html[data-settings="open"] .almanac,
-html[data-settings="open"] .status,
-html[data-settings="open"] .credits {
+html[data-settings="open"] .status {
   visibility: hidden;
 }
 

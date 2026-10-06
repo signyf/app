@@ -78,7 +78,6 @@ function showWeatherEmpty(message) {
   document.getElementById("weather-empty").textContent = message;
   document.getElementById("weather-skeleton").hidden = true;
   document.getElementById("weather-data").hidden = true;
-  document.getElementById("weather-credit").textContent = "天气 Open-Meteo";
 }
 
 function skyLabel(weather) {
@@ -110,7 +109,6 @@ function renderWeather(weather, { stale = false } = {}) {
   document.getElementById("condition").textContent = skyLabel(weather);
   document.getElementById("humidity").textContent = `湿度 ${formatHumidity(weather.humidity)}`;
   document.getElementById("uv").textContent = `紫外线 ${formatUv(weather.uvIndex)}`;
-  document.getElementById("weather-credit").textContent = weather.source === "amap" ? "天气来自高德" : "天气 Open-Meteo";
   const tip = clothingTip(weather);
   const clothing = document.getElementById("clothing");
   clothing.hidden = !tip;
