@@ -210,7 +210,7 @@ function windowOptions(store, mica) {
   const position = initialPosition(saved.window, screen.getAllDisplays());
   const options = {
     width: 360,
-    height: 452,
+    height: 508,
     frame: false,
     resizable: false,
     maximizable: false,

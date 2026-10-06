@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { clothingTip, outdoorAdvice } = require("../src/lib/clothing");
+const { clothingTip, outdoorAdvice, humidityAdvice } = require("../src/lib/clothing");
 
 test("clothing tips follow temperature bands", () => {
   const cases = [
@@ -72,4 +72,18 @@ test("outdoor advice follows each UV band and does not invent a missing value", 
   assert.equal(outdoorAdvice(null), "暂无紫外线");
   assert.equal(outdoorAdvice(undefined), "暂无紫外线");
   assert.equal(outdoorAdvice(Number.NaN), "暂无紫外线");
+});
+
+test("humidity advice follows each band and does not invent a missing value", () => {
+  assert.equal(humidityAdvice(0), "空气干燥，记得多喝水");
+  assert.equal(humidityAdvice(29.9), "空气干燥，记得多喝水");
+  assert.equal(humidityAdvice(30), "湿度舒适");
+  assert.equal(humidityAdvice(59.9), "湿度舒适");
+  assert.equal(humidityAdvice(60), "有点潮湿，体感更闷");
+  assert.equal(humidityAdvice(79.9), "有点潮湿，体感更闷");
+  assert.equal(humidityAdvice(80), "非常潮湿，衣物不易干");
+  assert.equal(humidityAdvice(100), "非常潮湿，衣物不易干");
+  assert.equal(humidityAdvice(null), "暂无湿度");
+  assert.equal(humidityAdvice(undefined), "暂无湿度");
+  assert.equal(humidityAdvice(Number.NaN), "暂无湿度");
 });

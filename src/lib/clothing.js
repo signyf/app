@@ -39,4 +39,12 @@ function outdoorAdvice(uvIndex) {
   return "不适合外出暴晒";
 }
 
-module.exports = { clothingTip, outdoorAdvice };
+function humidityAdvice(humidity) {
+  if (typeof humidity !== "number" || !Number.isFinite(humidity) || humidity < 0) return "暂无湿度";
+  if (humidity < 30) return "空气干燥，记得多喝水";
+  if (humidity < 60) return "湿度舒适";
+  if (humidity < 80) return "有点潮湿，体感更闷";
+  return "非常潮湿，衣物不易干";
+}
+
+module.exports = { clothingTip, outdoorAdvice, humidityAdvice };
