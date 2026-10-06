@@ -1,4 +1,11 @@
 const FORECAST_ENDPOINT = "https://api.open-meteo.com/v1/forecast";
+const {
+  normalizeAdcode,
+  buildAmapWeatherUrl,
+  buildAmapRegeoUrl,
+  parseAmapAdcode,
+  parseAmapLive,
+} = require("./amap-weather");
 
 const WEATHER_LABELS = {
   0: "晴",
@@ -123,6 +130,86 @@ function buildForecastUrl(latitude, longitude) {
   return url.toString();
 }
 
+function buildUvUrl(latitude, longitude) {
+  const url = new URL(FORECAST_ENDPOINT);
+  url.searchParams.set("latitude", String(latitude));
+  url.searchParams.set("longitude", String(longitude));
+  url.searchParams.set("current", "uv_index");
+  url.searchParams.set("timezone", "auto");
+  url.searchParams.set("forecast_days", "1");
+  return url.toString();
+}
+
+async function fetchJson(url, fetchImpl) {
+  const response = await fetchImpl(url, {
+    headers: { Accept: "application/json" },
+    signal: AbortSignal.timeout(12000),
+  });
+  if (!response || response.ok !== true) {
+    const error = new Error("weather failed");
+    error.status = response && typeof response.status === "number" ? response.status : undefined;
+    throw error;
+  }
+  return response.json();
+}
+
+async function fetchUvIndex(latitude, longitude, fetchImpl) {
+  const payload = await fetchJson(buildUvUrl(latitude, longitude), fetchImpl);
+  const uv = payload && payload.current ? payload.current.uv_index : null;
+  return typeof uv === "number" && Number.isFinite(uv) ? uv : null;
+}
+
+async function readAmapWeather(location, { amapKey, fetchImpl = globalThis.fetch, now } = {}) {
+  let adcode = normalizeAdcode(location && location.adcode);
+  if (!adcode) {
+    const located = await fetchJson(
+      buildAmapRegeoUrl(location.latitude, location.longitude, amapKey),
+      fetchImpl,
+    );
+    adcode = parseAmapAdcode(located);
+    if (!adcode) throw new Error("weather failed");
+  }
+  const live = parseAmapLive(await fetchJson(buildAmapWeatherUrl(adcode, amapKey), fetchImpl));
+  if (!live) throw new Error("weather failed");
+  let uvIndex = null;
+  try {
+    uvIndex = await fetchUvIndex(location.latitude, location.longitude, fetchImpl);
+  } catch {
+    uvIndex = null;
+  }
+  return {
+    adcode,
+    weather: {
+      temperature: live.temperature,
+      humidity: live.humidity,
+      uvIndex,
+      weatherCode: null,
+      condition: live.condition,
+      source: "amap",
+      observedAt: live.observedAt,
+      fetchedAt: now,
+    },
+  };
+}
+
+async function loadPlaceWeather(location, { amapKey = "", fetchImpl = globalThis.fetch, now } = {}) {
+  const key = typeof amapKey === "string" ? amapKey.trim() : "";
+  if (!key) {
+    const payload = await fetchWeatherPayload(location.latitude, location.longitude, { fetchImpl });
+    const view = resolveWeatherView({
+      requested: location,
+      payload,
+      error: false,
+      now,
+      cachedLocation: null,
+      cachedWeather: null,
+    });
+    if (!view.ok || !view.weather) throw new Error("weather failed");
+    return { adcode: "", weather: view.weather };
+  }
+  return readAmapWeather(location, { amapKey: key, fetchImpl, now });
+}
+
 function resolveWeatherView({
   requested,
   cachedLocation,
@@ -134,7 +221,12 @@ function resolveWeatherView({
 }) {
   const parsed = !error && payload ? parseOpenMeteoPayload(payload) : null;
   if (parsed) {
-    const weather = { ...parsed, fetchedAt: now };
+    const weather = {
+      ...parsed,
+      condition: "",
+      source: "open-meteo",
+      fetchedAt: now,
+    };
     return {
       ok: true,
       stale: false,
@@ -192,13 +284,16 @@ async function fetchWeatherPayload(latitude, longitude, { fetchImpl = globalThis
 
 module.exports = {
   buildForecastUrl,
+  buildUvUrl,
   describeWeatherStatus,
   fetchWeatherPayload,
   formatHumidity,
   formatTemperature,
   formatUpdateTime,
   formatUv,
+  loadPlaceWeather,
   parseOpenMeteoPayload,
+  readAmapWeather,
   resolveWeatherView,
   samePlace,
   weatherLabel,

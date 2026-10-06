@@ -1,5 +1,12 @@
 const fs = require("fs");
 const path = require("path");
+const { normalizeAdcode } = require("../src/lib/amap-weather");
+
+function finiteOrNull(value) {
+  if (value == null || value === "") return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
 
 function normalizeLocation(value) {
   if (!value || typeof value !== "object") return null;
@@ -9,15 +16,19 @@ function normalizeLocation(value) {
   if (!name || !Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
   if (Math.abs(latitude) > 90 || Math.abs(longitude) > 180) return null;
   const detail = typeof value.detail === "string" ? value.detail.trim() : "";
-  return { name, detail, latitude, longitude };
+  return { name, detail, latitude, longitude, adcode: normalizeAdcode(value.adcode) };
 }
 
 function normalizeWeather(value) {
   if (!value || typeof value !== "object") return null;
   const temperature = Number(value.temperature);
   const humidity = Number(value.humidity);
-  const weatherCode = Number(value.weatherCode);
-  if (![temperature, humidity, weatherCode].every((item) => Number.isFinite(item))) return null;
+  if (![temperature, humidity].every((item) => Number.isFinite(item))) return null;
+  const condition = typeof value.condition === "string" ? value.condition.trim() : "";
+  const weatherCode = finiteOrNull(value.weatherCode);
+  const source = value.source === "amap" ? "amap" : "open-meteo";
+  if (source === "amap" && !condition) return null;
+  if (source !== "amap" && weatherCode == null) return null;
   let uvIndex = null;
   if (value.uvIndex !== null && value.uvIndex !== undefined) {
     const uv = Number(value.uvIndex);
@@ -26,7 +37,16 @@ function normalizeWeather(value) {
   const fetchedAt = typeof value.fetchedAt === "string" ? value.fetchedAt : "";
   if (!fetchedAt || Number.isNaN(new Date(fetchedAt).getTime())) return null;
   const observedAt = typeof value.observedAt === "string" ? value.observedAt : null;
-  return { temperature, humidity, uvIndex, weatherCode, observedAt, fetchedAt };
+  return {
+    temperature,
+    humidity,
+    uvIndex,
+    weatherCode,
+    condition,
+    source,
+    observedAt,
+    fetchedAt,
+  };
 }
 
 function normalizeWindow(value) {

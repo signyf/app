@@ -58,6 +58,36 @@ test("store drops weather that has no location and rejects bad coordinates", () 
   assert.equal(normalizeLocation({ name: "火星", latitude: 120, longitude: 10 }), null);
 });
 
+test("高德实况可以没有天气代码，地点可以记下区县编码", () => {
+  const file = tempFile();
+  const store = createStore(file);
+  store.save({
+    location: {
+      name: "中山公园",
+      detail: "广东省佛山市禅城区中山公园",
+      latitude: 23.02,
+      longitude: 113.12,
+      adcode: "440604",
+    },
+    weather: {
+      temperature: 23,
+      humidity: 48,
+      uvIndex: null,
+      weatherCode: null,
+      condition: "多云",
+      source: "amap",
+      observedAt: "2026-10-06 11:00:00",
+      fetchedAt: "2026-10-06T03:00:00.000Z",
+    },
+  });
+  const loaded = createStore(file).load();
+  assert.equal(loaded.location.adcode, "440604");
+  assert.equal(loaded.weather.condition, "多云");
+  assert.equal(loaded.weather.source, "amap");
+  assert.equal(loaded.weather.weatherCode, null);
+  assert.equal(loaded.weather.uvIndex, null);
+});
+
 test("saved window position is reused only when it is still on a display", () => {
   const displays = [{ workArea: { x: 0, y: 0, width: 1920, height: 1080 } }];
   assert.deepEqual(initialPosition({ x: 100, y: 80 }, displays), { x: 100, y: 80 });
