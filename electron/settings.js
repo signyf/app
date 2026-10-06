@@ -8,8 +8,18 @@ function normalizeAmapKey(value) {
   return line;
 }
 
+const GLASS_MIN = 40;
+const GLASS_MAX = 100;
+const GLASS_DEFAULT = 70;
+
+function normalizeGlassOpacity(value) {
+  const number = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(number)) return GLASS_DEFAULT;
+  return Math.min(GLASS_MAX, Math.max(GLASS_MIN, Math.round(number)));
+}
+
 function emptySettings() {
-  return { amapKey: "", legacyChecked: false, launchAtLogin: false };
+  return { amapKey: "", legacyChecked: false, launchAtLogin: false, glassOpacity: GLASS_DEFAULT };
 }
 
 function readSettings(filePath) {
@@ -20,6 +30,7 @@ function readSettings(filePath) {
       amapKey: normalizeAmapKey(data.amapKey),
       legacyChecked: data.legacyChecked === true,
       launchAtLogin: data.launchAtLogin === true,
+      glassOpacity: normalizeGlassOpacity(data.glassOpacity),
     };
   } catch {
     return emptySettings();
@@ -33,6 +44,7 @@ function writeSettings(filePath, settings) {
     amapKey: normalizeAmapKey(settings && settings.amapKey),
     legacyChecked: Boolean(settings && settings.legacyChecked),
     launchAtLogin: Boolean(settings && settings.launchAtLogin),
+    glassOpacity: normalizeGlassOpacity(settings && settings.glassOpacity),
   };
   const tmp = path.join(directory, `.${path.basename(filePath)}.${process.pid}.tmp`);
   fs.writeFileSync(tmp, `${JSON.stringify(next, null, 2)}\n`, "utf8");
@@ -44,22 +56,26 @@ function writeSettings(filePath, settings) {
 function importLegacyKey(settings, legacyText) {
   const current = settings && typeof settings === "object" ? settings : emptySettings();
   const launchAtLogin = current.launchAtLogin === true;
+  const glassOpacity = normalizeGlassOpacity(current.glassOpacity);
   if (current.legacyChecked) {
     return {
       amapKey: normalizeAmapKey(current.amapKey),
       legacyChecked: true,
       launchAtLogin,
+      glassOpacity,
     };
   }
   return {
     amapKey: normalizeAmapKey(current.amapKey) || normalizeAmapKey(legacyText),
     legacyChecked: true,
     launchAtLogin,
+    glassOpacity,
   };
 }
 
 module.exports = {
   normalizeAmapKey,
+  normalizeGlassOpacity,
   readSettings,
   writeSettings,
   importLegacyKey,

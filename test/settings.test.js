@@ -30,15 +30,29 @@ test("writeSettings round-trips the key the widget saved", () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "widget-settings-"));
   const file = path.join(directory, "widget-settings.json");
   writeSettings(file, { amapKey: " pasted-key \n", legacyChecked: true });
-  assert.deepEqual(readSettings(file), { amapKey: "pasted-key", legacyChecked: true, launchAtLogin: false });
+  assert.deepEqual(readSettings(file), { amapKey: "pasted-key", legacyChecked: true, launchAtLogin: false, glassOpacity: 70 });
 });
 
 test("startup stays off until the toggle is saved, and saving it keeps the key", () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "widget-settings-"));
   const file = path.join(directory, "widget-settings.json");
   assert.equal(readSettings(file).launchAtLogin, false);
-  writeSettings(file, { amapKey: "pasted-key", legacyChecked: true, launchAtLogin: true });
-  assert.deepEqual(readSettings(file), { amapKey: "pasted-key", legacyChecked: true, launchAtLogin: true });
-  writeSettings(file, { amapKey: "pasted-key", legacyChecked: true, launchAtLogin: false });
+  writeSettings(file, { amapKey: "pasted-key", legacyChecked: true, launchAtLogin: true, glassOpacity: 55 });
+  assert.deepEqual(readSettings(file), { amapKey: "pasted-key", legacyChecked: true, launchAtLogin: true, glassOpacity: 55 });
+  writeSettings(file, { amapKey: "pasted-key", legacyChecked: true, launchAtLogin: false, glassOpacity: 55 });
   assert.equal(readSettings(file).launchAtLogin, false);
+  assert.equal(readSettings(file).glassOpacity, 55);
+});
+
+test("glass opacity defaults to 70 and stays inside 40 to 100", () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "widget-settings-"));
+  const file = path.join(directory, "widget-settings.json");
+  assert.equal(readSettings(file).glassOpacity, 70);
+  const low = writeSettings(file, { amapKey: "pasted-key", legacyChecked: true, glassOpacity: 12 });
+  assert.equal(low.glassOpacity, 40);
+  const high = writeSettings(file, { amapKey: "pasted-key", legacyChecked: true, glassOpacity: 180 });
+  assert.equal(high.glassOpacity, 100);
+  const kept = importLegacyKey(readSettings(file), "another-legacy-key");
+  assert.equal(kept.amapKey, "pasted-key");
+  assert.equal(kept.glassOpacity, 100);
 });
