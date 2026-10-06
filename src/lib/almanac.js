@@ -41,10 +41,9 @@ function getAlmanac(year, month, day) {
   };
 }
 
-function formatActivities(items, limit = 6) {
+function formatActivities(items) {
   if (!items || !items.length) return "无";
-  if (items.length <= limit) return items.join("、");
-  return `${items.slice(0, limit).join("、")}等`;
+  return items.join("、");
 }
 
 module.exports = {

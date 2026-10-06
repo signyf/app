@@ -43,8 +43,16 @@ test("人日 comes from the library's traditional lunar festivals", () => {
   assert.ok(renri.festivals.includes("人日"));
 });
 
-test("formatActivities keeps the 黄历 line short", () => {
+test("formatActivities lists every activity and does not truncate", () => {
   assert.equal(formatActivities([]), "无");
   assert.equal(formatActivities(["祭祀", "出行"]), "祭祀、出行");
-  assert.equal(formatActivities(["甲", "乙", "丙", "丁"], 3), "甲、乙、丙等");
+  const many = ["甲", "乙", "丙", "丁", "戊", "己", "庚", "辛"];
+  assert.equal(formatActivities(many), many.join("、"));
+  assert.equal(formatActivities(many).includes("等"), false);
+  const day = getAlmanac(2026, 10, 6);
+  assert.equal(formatActivities(day.yi), day.yi.join("、"));
+  assert.equal(formatActivities(day.ji), day.ji.join("、"));
+  assert.equal(formatActivities(day.yi).endsWith("等"), false);
+  assert.equal(formatActivities(day.ji).endsWith("等"), false);
+  assert.ok(day.yi.length > 6);
 });
