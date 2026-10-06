@@ -3,7 +3,7 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const test = require("node:test");
-const { importLegacyKey, normalizeAmapKey, readSettings, writeSettings } = require("../electron/settings");
+const { glassBackgroundColor, importLegacyKey, normalizeAmapKey, readSettings, writeSettings } = require("../electron/settings");
 
 test("normalizeAmapKey keeps a single token and drops comments", () => {
   assert.equal(normalizeAmapKey("  abc123  \n"), "abc123");
@@ -42,6 +42,13 @@ test("startup stays off until the toggle is saved, and saving it keeps the key",
   writeSettings(file, { amapKey: "pasted-key", legacyChecked: true, launchAtLogin: false, glassOpacity: 55 });
   assert.equal(readSettings(file).launchAtLogin, false);
   assert.equal(readSettings(file).glassOpacity, 55);
+});
+
+test("glass fill is medium blue and its alpha follows the opacity", () => {
+  assert.equal(glassBackgroundColor(70), "#B31F6FE5");
+  assert.equal(glassBackgroundColor(100), "#FF1F6FE5");
+  assert.equal(glassBackgroundColor(40), "#661F6FE5");
+  assert.equal(glassBackgroundColor(12), "#661F6FE5");
 });
 
 test("glass opacity defaults to 70 and stays inside 40 to 100", () => {

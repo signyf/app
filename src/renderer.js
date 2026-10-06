@@ -47,6 +47,9 @@ function applyGlass(percent) {
 
 function queueGlassSave(percent) {
   const safe = applyGlass(percent);
+  if (window.widget && typeof window.widget.setGlassOpacity === "function") {
+    window.widget.setGlassOpacity(safe).catch(() => {});
+  }
   clearTimeout(glassSaveTimer);
   glassSaveTimer = setTimeout(() => {
     if (!window.widget || typeof window.widget.saveSettings !== "function") return;
@@ -143,7 +146,6 @@ function openSettings() {
     if (!settingsOpen) return;
     document.getElementById("amap-key-input").value = settings && typeof settings.amapKey === "string" ? settings.amapKey : "";
     document.getElementById("launch-toggle").checked = Boolean(settings && settings.launchAtLogin);
-    applyGlass(settings && settings.glassOpacity);
   }).catch(() => {
     if (settingsOpen) document.getElementById("settings-message").textContent = "没有读到已保存的 Key";
   });
@@ -416,6 +418,19 @@ function applyDockMode(state) {
   }
 }
 
+async function fitPanel() {
+  if (!window.widget || typeof window.widget.fitPanel !== "function") return;
+  if (document.documentElement.dataset.dock === "ball") return;
+  const status = document.getElementById("status");
+  const widget = document.querySelector(".widget");
+  if (!status || !widget) return;
+  const style = getComputedStyle(widget);
+  const pad = Number.parseFloat(style.paddingBottom) || 0;
+  const border = Number.parseFloat(style.borderBottomWidth) || 0;
+  const height = Math.ceil(status.getBoundingClientRect().bottom + pad + border);
+  await window.widget.fitPanel(height);
+}
+
 async function boot() {
   renderAlmanac(new Date());
   setInterval(() => renderAlmanac(new Date()), 60 * 1000);
@@ -428,6 +443,7 @@ async function boot() {
     if (window.widget.getSettings) {
       const settings = await window.widget.getSettings();
       applyGlass(settings && settings.glassOpacity);
+      if (window.widget.setGlassOpacity) await window.widget.setGlassOpacity(settings && settings.glassOpacity);
     }
     const state = await window.widget.getState();
     renderLocation(state.location || null);
@@ -437,6 +453,7 @@ async function boot() {
       else showSkeleton();
       await refreshWeather(state.location);
     }
+    await fitPanel();
   } finally {
     if (!document.documentElement.dataset.dock) document.documentElement.dataset.dock = "panel";
     document.body.dataset.ready = "1";

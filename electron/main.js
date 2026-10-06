@@ -4,13 +4,13 @@ const { app, BrowserWindow, Menu, dialog, ipcMain, screen, session, nativeTheme 
 
 const { createStore, normalizeLocation } = require("./state");
 const { initialPosition } = require("./placement");
-const { importLegacyKey, normalizeAmapKey, normalizeGlassOpacity, readSettings, writeSettings } = require("./settings");
+const { importLegacyKey, normalizeAmapKey, normalizeGlassOpacity, glassBackgroundColor, readSettings, writeSettings } = require("./settings");
 const { loginItemSettings, loginTarget, shouldApplyLoginItem } = require("./launch");
-const { PANEL_WIDTH, PANEL_HEIGHT, displayForBounds, createDockSession } = require("./dock");
+const { PANEL_WIDTH, getPanelHeight, setPanelHeight, displayForBounds, createDockSession } = require("./dock");
 const { searchPlaces } = require("../src/lib/geocode");
 const { describeWeatherStatus, loadPlaceWeather, resolveWeatherView, samePlace } = require("../src/lib/weather");
 
-const USER_AGENT = "tianqi-widget/1.11 (desktop weather widget)";
+const USER_AGENT = "tianqi-widget/1.12 (desktop weather widget)";
 
 function preloadPath() {
   const packed = path.join(__dirname, "preload.js");
@@ -84,6 +84,15 @@ function applyLaunchAtLogin(enabled) {
   } catch (error) {
     console.error(error && error.message ? error.message : "开机启动设置失败");
   }
+}
+
+function paintGlass(ball, percent) {
+  const value = percent === undefined ? ensureSettings().glassOpacity : percent;
+  const color = ball ? "#00000000" : glassBackgroundColor(value);
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (!win.isDestroyed()) win.setBackgroundColor(color);
+  }
+  return color;
 }
 
 function registerIpc(store, dock) {
@@ -193,12 +202,30 @@ function registerIpc(store, dock) {
       : normalizeGlassOpacity(current.glassOpacity);
     const saved = writeSettings(settingsFile(), { amapKey, legacyChecked: true, launchAtLogin, glassOpacity });
     applyLaunchAtLogin(saved.launchAtLogin);
+    paintGlass();
     return {
       ok: true,
       amapKey: saved.amapKey,
       launchAtLogin: saved.launchAtLogin,
       glassOpacity: saved.glassOpacity,
     };
+  });
+
+  ipcMain.handle("window:glass", (_event, percent) => {
+    paintGlass(false, percent);
+    return glassBackgroundColor(percent);
+  });
+
+  ipcMain.handle("window:fit", (_event, height) => {
+    const next = setPanelHeight(height);
+    const win = BrowserWindow.getAllWindows()[0];
+    if (!win || win.isDestroyed() || dock.isBall()) return next;
+    const bounds = win.getBounds();
+    if (bounds.height !== next) {
+      if (dock.holdMoves) dock.holdMoves();
+      win.setBounds({ x: bounds.x, y: bounds.y, width: bounds.width, height: next });
+    }
+    return next;
   });
 
   ipcMain.handle("dock:state", () => dock.view());
@@ -245,6 +272,7 @@ function createDockBinding() {
   function publish() {
     const view = session.view();
     if (win && !win.isDestroyed()) {
+      paintGlass(view.ball);
       const display = currentDisplay(win.getBounds());
       const next = session.place(display);
       if (next) {
@@ -269,9 +297,21 @@ function createDockBinding() {
   }
 
   return {
+    view() {
+      return session.view();
+    },
+    isBall() {
+      return session.view().ball;
+    },
+    holdMoves() {
+      ignoreMoves += 1;
+      setTimeout(() => {
+        ignoreMoves = Math.max(0, ignoreMoves - 1);
+      }, 300);
+    },
     startupBounds(saved) {
       const display = saved
-        ? currentDisplay({ x: saved.x, y: saved.y, width: PANEL_WIDTH, height: PANEL_HEIGHT })
+        ? currentDisplay({ x: saved.x, y: saved.y, width: PANEL_WIDTH, height: getPanelHeight() })
         : screen.getAllDisplays()[0] || null;
       session.restore(saved, display);
       return session.place(display);
@@ -396,13 +436,14 @@ async function captureWhenReady(win, file) {
   app.quit();
 }
 
-function windowOptions(store, mica, dockBounds) {
+function windowOptions(store, dockBounds, ball) {
   const saved = store.load();
   const position = dockBounds ? null : initialPosition(saved.window, screen.getAllDisplays());
   const options = {
     width: dockBounds ? dockBounds.width : PANEL_WIDTH,
-    height: dockBounds ? dockBounds.height : PANEL_HEIGHT,
+    height: dockBounds ? dockBounds.height : getPanelHeight(),
     frame: false,
+    thickFrame: false,
     resizable: false,
     maximizable: false,
     fullscreenable: false,
@@ -410,7 +451,7 @@ function windowOptions(store, mica, dockBounds) {
     alwaysOnTop: true,
     transparent: true,
     title: "天气小挂件",
-    backgroundColor: "#00000000",
+    backgroundColor: ball ? "#00000000" : glassBackgroundColor(ensureSettings().glassOpacity),
     autoHideMenuBar: true,
     webPreferences: {
       preload: preloadPath(),
@@ -419,7 +460,6 @@ function windowOptions(store, mica, dockBounds) {
       sandbox: true,
     },
   };
-  if (mica) options.backgroundMaterial = "mica";
   if (dockBounds) {
     options.x = dockBounds.x;
     options.y = dockBounds.y;
@@ -432,12 +472,13 @@ function windowOptions(store, mica, dockBounds) {
 
 function createWindow(store, dock) {
   const dockBounds = dock.startupBounds(store.load().window);
+  const ball = dock.isBall();
   let win;
   try {
-    win = new BrowserWindow(windowOptions(store, process.platform === "win32", dockBounds));
+    win = new BrowserWindow(windowOptions(store, dockBounds, ball));
   } catch (error) {
     console.error(error && error.message ? error.message : error);
-    win = new BrowserWindow(windowOptions(store, false, dockBounds));
+    win = new BrowserWindow(windowOptions(store, dockBounds, ball));
   }
   win.removeMenu();
   dock.attach(win, store);
@@ -481,13 +522,6 @@ app.whenReady().then(() => {
     session.defaultSession.setPermissionRequestHandler((_webContents, _permission, callback) => {
       callback(false);
     });
-    if (process.platform !== "win32") {
-      nativeTheme.on("updated", () => {
-        for (const win of BrowserWindow.getAllWindows()) {
-          if (!win.isDestroyed()) win.setBackgroundColor("#00000000");
-        }
-      });
-    }
     const store = createStore(path.join(app.getPath("userData"), "widget-state.json"));
     applyLaunchAtLogin(ensureSettings().launchAtLogin);
     const dock = createDockBinding();
