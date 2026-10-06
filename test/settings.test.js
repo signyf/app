@@ -30,5 +30,15 @@ test("writeSettings round-trips the key the widget saved", () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "widget-settings-"));
   const file = path.join(directory, "widget-settings.json");
   writeSettings(file, { amapKey: " pasted-key \n", legacyChecked: true });
-  assert.deepEqual(readSettings(file), { amapKey: "pasted-key", legacyChecked: true });
+  assert.deepEqual(readSettings(file), { amapKey: "pasted-key", legacyChecked: true, launchAtLogin: false });
+});
+
+test("startup stays off until the toggle is saved, and saving it keeps the key", () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "widget-settings-"));
+  const file = path.join(directory, "widget-settings.json");
+  assert.equal(readSettings(file).launchAtLogin, false);
+  writeSettings(file, { amapKey: "pasted-key", legacyChecked: true, launchAtLogin: true });
+  assert.deepEqual(readSettings(file), { amapKey: "pasted-key", legacyChecked: true, launchAtLogin: true });
+  writeSettings(file, { amapKey: "pasted-key", legacyChecked: true, launchAtLogin: false });
+  assert.equal(readSettings(file).launchAtLogin, false);
 });

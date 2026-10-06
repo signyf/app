@@ -9,7 +9,7 @@ function normalizeAmapKey(value) {
 }
 
 function emptySettings() {
-  return { amapKey: "", legacyChecked: false };
+  return { amapKey: "", legacyChecked: false, launchAtLogin: false };
 }
 
 function readSettings(filePath) {
@@ -19,6 +19,7 @@ function readSettings(filePath) {
     return {
       amapKey: normalizeAmapKey(data.amapKey),
       legacyChecked: data.legacyChecked === true,
+      launchAtLogin: data.launchAtLogin === true,
     };
   } catch {
     return emptySettings();
@@ -31,6 +32,7 @@ function writeSettings(filePath, settings) {
   const next = {
     amapKey: normalizeAmapKey(settings && settings.amapKey),
     legacyChecked: Boolean(settings && settings.legacyChecked),
+    launchAtLogin: Boolean(settings && settings.launchAtLogin),
   };
   const tmp = path.join(directory, `.${path.basename(filePath)}.${process.pid}.tmp`);
   fs.writeFileSync(tmp, `${JSON.stringify(next, null, 2)}\n`, "utf8");
@@ -41,15 +43,18 @@ function writeSettings(filePath, settings) {
 
 function importLegacyKey(settings, legacyText) {
   const current = settings && typeof settings === "object" ? settings : emptySettings();
+  const launchAtLogin = current.launchAtLogin === true;
   if (current.legacyChecked) {
     return {
       amapKey: normalizeAmapKey(current.amapKey),
       legacyChecked: true,
+      launchAtLogin,
     };
   }
   return {
     amapKey: normalizeAmapKey(current.amapKey) || normalizeAmapKey(legacyText),
     legacyChecked: true,
+    launchAtLogin,
   };
 }
 
