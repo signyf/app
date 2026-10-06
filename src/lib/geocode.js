@@ -2,6 +2,7 @@ const NOMINATIM_ENDPOINT = "https://nominatim.openstreetmap.org/search";
 const OPEN_METEO_ENDPOINT = "https://geocoding-api.open-meteo.com/v1/search";
 const PHOTON_ENDPOINT = "https://photon.komoot.io/api/";
 const AMAP_ENDPOINT = "https://restapi.amap.com/v3/geocode/geo";
+const { normalizeAdcode } = require("./amap-weather");
 const DEFAULT_USER_AGENT = "tianqi-widget/1.3 (desktop weather widget)";
 const PROVIDER_TIMEOUT_MS = 5000;
 const ROAD_NOTE = "道路位置，不是门牌";
@@ -379,13 +380,16 @@ function amapToPlace(entry) {
     : uniqueParts([formatted, district, city], { limit: 3 }).join(" · ");
   if (!name) return null;
   const detail = uniqueParts([formatted, street, number, district, city, province], { limit: 6 }).join(" · ") || name;
-  return {
+  const place = {
     id: `amap:${location}`,
     name,
     detail,
     latitude,
     longitude,
   };
+  const adcode = normalizeAdcode(entry.adcode);
+  if (adcode) place.adcode = adcode;
+  return place;
 }
 
 function parseAmapResults(payload) {

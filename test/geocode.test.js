@@ -419,6 +419,11 @@ test("parseAmapResults keeps a road and a door at different precision", () => {
     }],
   });
   assert.equal(door[0].name, "叠翠路8号 · 南海区 · 佛山市");
+  const coded = parseAmapResults({
+    status: "1",
+    geocodes: [{ ...AMAP_ROAD, adcode: "440605" }],
+  });
+  assert.equal(coded[0].adcode, "440605");
 });
 
 test("parseAmapResults throws a status that does not include the key", () => {

@@ -7,6 +7,7 @@ const {
   weatherLabel,
   weatherMark,
 } = require("./lib/weather");
+const { markForAmapWeather } = require("./lib/amap-weather");
 
 let currentLocation = null;
 let requestSerial = 0;
@@ -54,6 +55,12 @@ function showWeatherEmpty(message) {
   document.getElementById("weather-empty").textContent = message;
   document.getElementById("weather-skeleton").hidden = true;
   document.getElementById("weather-data").hidden = true;
+  document.getElementById("weather-credit").textContent = "天气 Open-Meteo";
+}
+
+function skyLabel(weather) {
+  if (weather && weather.source === "amap" && weather.condition) return weather.condition;
+  return weatherLabel(weather && weather.weatherCode);
 }
 
 function showSkeleton() {
@@ -77,9 +84,10 @@ function renderWeather(weather, { stale = false } = {}) {
   document.getElementById("weather-skeleton").hidden = true;
   document.getElementById("weather-data").hidden = false;
   document.getElementById("temp-value").textContent = formatTemperature(weather.temperature);
-  document.getElementById("condition").textContent = weatherLabel(weather.weatherCode);
+  document.getElementById("condition").textContent = skyLabel(weather);
   document.getElementById("humidity").textContent = `湿度 ${formatHumidity(weather.humidity)}`;
   document.getElementById("uv").textContent = `紫外线 ${formatUv(weather.uvIndex)}`;
+  document.getElementById("weather-credit").textContent = weather.source === "amap" ? "天气来自高德" : "天气 Open-Meteo";
   const tip = clothingTip(weather);
   const clothing = document.getElementById("clothing");
   clothing.hidden = !tip;
@@ -88,7 +96,9 @@ function renderWeather(weather, { stale = false } = {}) {
   document.getElementById("humidity-advice").textContent = humidityAdvice(weather.humidity);
   const shown = formatTemperature(weather.temperature);
   document.getElementById("ball-temp").textContent = shown === "--" ? "--" : `${shown}°`;
-  document.getElementById("ball-mark").dataset.mark = weatherMark(weather.weatherCode);
+  document.getElementById("ball-mark").dataset.mark = weather.source === "amap"
+    ? markForAmapWeather(weather.condition)
+    : weatherMark(weather.weatherCode);
   document.getElementById("stale-tag").hidden = !stale;
 }
 

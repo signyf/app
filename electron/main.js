@@ -8,9 +8,9 @@ const { importLegacyKey, normalizeAmapKey, readSettings, writeSettings } = requi
 const { loginItemSettings, loginTarget, shouldApplyLoginItem } = require("./launch");
 const { PANEL_WIDTH, PANEL_HEIGHT, displayForBounds, createDockSession } = require("./dock");
 const { searchPlaces } = require("../src/lib/geocode");
-const { fetchWeatherPayload, resolveWeatherView, samePlace } = require("../src/lib/weather");
+const { describeWeatherStatus, loadPlaceWeather, resolveWeatherView, samePlace } = require("../src/lib/weather");
 
-const USER_AGENT = "tianqi-widget/1.9 (desktop weather widget)";
+const USER_AGENT = "tianqi-widget/1.10 (desktop weather widget)";
 
 function preloadPath() {
   const packed = path.join(__dirname, "preload.js");
@@ -129,22 +129,31 @@ function registerIpc(store, dock) {
       return { ok: false, stale: false, weather: null, message: "天气获取失败" };
     }
     const before = store.load();
+    const now = new Date().toISOString();
     try {
-      const payload = await fetchWeatherPayload(requested.latitude, requested.longitude);
-      const view = resolveWeatherView({
-        requested,
-        cachedLocation: before.location,
-        cachedWeather: before.weather,
-        payload,
-        error: false,
-        now: new Date().toISOString(),
+      const loaded = await loadPlaceWeather(requested, {
+        amapKey: currentAmapKey(),
+        now,
       });
-      if (view.ok) {
-        store.update((current) => {
-          if (!current.location || !samePlace(current.location, requested)) return current;
-          return { ...current, weather: view.weather };
-        });
-      }
+      const view = {
+        ok: true,
+        stale: false,
+        weather: loaded.weather,
+        message: describeWeatherStatus({
+          ok: true,
+          stale: false,
+          fetchedAt: now,
+        }),
+      };
+      store.update((current) => {
+        if (!current.location || !samePlace(current.location, requested)) return current;
+        const adcode = loaded.adcode || current.location.adcode || "";
+        return {
+          ...current,
+          location: adcode ? { ...current.location, adcode } : current.location,
+          weather: view.weather,
+        };
+      });
       return view;
     } catch {
       return resolveWeatherView({
@@ -153,7 +162,7 @@ function registerIpc(store, dock) {
         cachedWeather: before.weather,
         payload: null,
         error: true,
-        now: new Date().toISOString(),
+        now,
       });
     }
   });
