@@ -10,7 +10,7 @@ const { PANEL_WIDTH, PANEL_HEIGHT, displayForBounds, createDockSession } = requi
 const { searchPlaces } = require("../src/lib/geocode");
 const { fetchWeatherPayload, resolveWeatherView, samePlace } = require("../src/lib/weather");
 
-const USER_AGENT = "tianqi-widget/1.7 (desktop weather widget)";
+const USER_AGENT = "tianqi-widget/1.8 (desktop weather widget)";
 
 function preloadPath() {
   const packed = path.join(__dirname, "preload.js");
@@ -183,6 +183,7 @@ function registerIpc(store, dock) {
   ipcMain.handle("dock:state", () => dock.view());
   ipcMain.handle("dock:pointer", (_event, inside) => dock.pointer(Boolean(inside)));
   ipcMain.handle("dock:open", () => dock.open());
+  ipcMain.handle("dock:slide", () => dock.slide());
   ipcMain.handle("dock:collapse", () => dock.collapse());
   ipcMain.handle("dock:move", (_event, point) => {
     if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) return dock.view();
@@ -226,11 +227,18 @@ function createDockBinding() {
       const display = currentDisplay(win.getBounds());
       const next = session.place(display);
       if (next) {
-        ignoreMoves += 1;
-        win.setBounds(next);
-        setTimeout(() => {
-          ignoreMoves = Math.max(0, ignoreMoves - 1);
-        }, 300);
+        const current = win.getBounds();
+        const same = current.x === next.x
+          && current.y === next.y
+          && current.width === next.width
+          && current.height === next.height;
+        if (!same) {
+          ignoreMoves += 1;
+          win.setBounds(next);
+          setTimeout(() => {
+            ignoreMoves = Math.max(0, ignoreMoves - 1);
+          }, 300);
+        }
       }
       if (!win.webContents.isLoading()) win.webContents.send("dock:mode", view);
     }
@@ -250,17 +258,32 @@ function createDockBinding() {
     attach(nextWindow, nextStore) {
       win = nextWindow;
       store = nextStore;
+      const snapReleased = () => {
+        if (!win || win.isDestroyed() || ignoreMoves > 0) return;
+        const bounds = win.getBounds();
+        let pointer = null;
+        try {
+          pointer = screen.getCursorScreenPoint();
+        } catch {
+          pointer = null;
+        }
+        session.snap(bounds, currentDisplay(bounds), pointer);
+        publish();
+      };
       win.on("move", () => {
         if (ignoreMoves > 0) return;
         clearTimeout(snapTimer);
-        snapTimer = setTimeout(() => {
-          if (!win || win.isDestroyed() || ignoreMoves > 0) return;
-          session.snap(win.getBounds(), currentDisplay(win.getBounds()));
-          publish();
-        }, 180);
+        snapTimer = setTimeout(snapReleased, 280);
+      });
+      win.on("moved", () => {
+        if (ignoreMoves > 0) return;
+        clearTimeout(snapTimer);
+        snapReleased();
       });
       win.on("close", () => {
         clearTimeout(snapTimer);
+        clearTimeout(hoverTimer);
+        clearTimeout(leaveTimer);
         clearTimeout(persistTimer);
         remember();
       });
@@ -277,23 +300,37 @@ function createDockBinding() {
       clearTimeout(hoverTimer);
       clearTimeout(leaveTimer);
       if (inside) {
+        if (session.view().suppressHover) return session.view();
+        session.hover();
+        const view = publish();
         hoverTimer = setTimeout(() => {
-          session.hover();
+          session.open();
           publish();
-        }, 280);
-      } else {
-        leaveTimer = setTimeout(() => {
-          session.leave();
-          publish();
-        }, 500);
+        }, 320);
+        return view;
       }
+      leaveTimer = setTimeout(() => {
+        session.leave();
+        publish();
+      }, 420);
       return session.view();
+    },
+    slide() {
+      clearTimeout(hoverTimer);
+      clearTimeout(leaveTimer);
+      session.slideOut();
+      return publish();
     },
     open() {
       clearTimeout(hoverTimer);
       clearTimeout(leaveTimer);
-      session.open();
-      return publish();
+      session.slideOut();
+      const view = publish();
+      hoverTimer = setTimeout(() => {
+        session.open();
+        publish();
+      }, 240);
+      return view;
     },
     collapse() {
       clearTimeout(hoverTimer);

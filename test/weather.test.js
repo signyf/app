@@ -11,6 +11,7 @@ const {
   resolveWeatherView,
   samePlace,
   weatherLabel,
+  weatherMark,
 } = require("../src/lib/weather");
 
 const place = { name: "天通苑", detail: "", latitude: 40.07, longitude: 116.41 };
@@ -70,6 +71,13 @@ test("formatters and condition labels stay short", () => {
   assert.equal(weatherLabel(61), "小雨");
   assert.equal(weatherLabel(95), "雷暴");
   assert.equal(weatherLabel(123), "未知");
+  assert.equal(weatherMark(0), "sun");
+  assert.equal(weatherMark(2), "cloud");
+  assert.equal(weatherMark(45), "fog");
+  assert.equal(weatherMark(61), "rain");
+  assert.equal(weatherMark(95), "rain");
+  assert.equal(weatherMark(73), "snow");
+  assert.equal(weatherMark(null), "cloud");
 });
 
 test("status text marks a failed refresh that still has a previous reading", () => {

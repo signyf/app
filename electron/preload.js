@@ -18,6 +18,7 @@ contextBridge.exposeInMainWorld("widget", {
   dockState: () => ipcRenderer.invoke("dock:state"),
   dockPointer: (inside) => ipcRenderer.invoke("dock:pointer", inside),
   expandDock: () => ipcRenderer.invoke("dock:open"),
+  slideDock: () => ipcRenderer.invoke("dock:slide"),
   collapseDock: () => ipcRenderer.invoke("dock:collapse"),
   moveBall: (x, y) => ipcRenderer.invoke("dock:move", { x, y }),
   onDockMode: (callback) => {

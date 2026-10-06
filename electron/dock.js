@@ -1,7 +1,8 @@
 const PANEL_WIDTH = 360;
 const PANEL_HEIGHT = 508;
 const BALL_SIZE = 72;
-const EDGE_PX = 28;
+const BALL_PEEK = 18;
+const EDGE_PX = 128;
 
 function clamp(value, min, max) {
   if (max < min) return min;
@@ -61,6 +62,19 @@ function nearestEdge(bounds, display, threshold = EDGE_PX) {
   return distances[0][0];
 }
 
+function pointerEdge(point, display, threshold = EDGE_PX) {
+  const area = workAreaOf(display);
+  if (!area || !point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) return null;
+  const distances = [
+    ["left", point.x - area.x],
+    ["right", area.x + area.width - point.x],
+    ["top", point.y - area.y],
+    ["bottom", area.y + area.height - point.y],
+  ].sort((left, right) => left[1] - right[1]);
+  if (distances[0][1] > threshold) return null;
+  return distances[0][0];
+}
+
 function anchorOnEdge(edge, bounds) {
   if (!bounds) return 0;
   if (edge === "left" || edge === "right") {
@@ -71,17 +85,19 @@ function anchorOnEdge(edge, bounds) {
   return bounds.x + width / 2;
 }
 
-function ballBounds(edge, anchor, display) {
+function ballBounds(edge, anchor, display, tucked = true) {
   const area = workAreaOf(display);
   if (!area || !edge) return null;
   const size = Math.min(BALL_SIZE, area.width, area.height);
+  const peek = Math.min(BALL_PEEK, size);
+  const hidden = tucked ? size - peek : 0;
   if (edge === "left" || edge === "right") {
     const y = clamp(anchor - size / 2, area.y, area.y + area.height - size);
-    const x = edge === "left" ? area.x : area.x + area.width - size;
+    const x = edge === "left" ? area.x - hidden : area.x + area.width - size + hidden;
     return { x: Math.round(x), y: Math.round(y), width: size, height: size };
   }
   const x = clamp(anchor - size / 2, area.x, area.x + area.width - size);
-  const y = edge === "top" ? area.y : area.y + area.height - size;
+  const y = edge === "top" ? area.y - hidden : area.y + area.height - size + hidden;
   return { x: Math.round(x), y: Math.round(y), width: size, height: size };
 }
 
@@ -104,6 +120,7 @@ function createDockSession() {
   let edge = null;
   let anchor = null;
   let expanded = true;
+  let emerged = false;
   let suppressHover = false;
 
   function view() {
@@ -111,23 +128,29 @@ function createDockSession() {
       edge,
       anchor,
       expanded,
+      emerged,
       ball: Boolean(edge) && !expanded,
+      tucked: Boolean(edge) && !expanded && !emerged,
       suppressHover,
     };
   }
 
-  function park(nextEdge, nextAnchor) {
+  function park(nextEdge, nextAnchor, quiet) {
+    const sameRest = edge === nextEdge && !expanded && !emerged;
     edge = nextEdge;
     anchor = nextAnchor;
     expanded = false;
-    suppressHover = true;
+    emerged = false;
+    if (!quiet && !sameRest) suppressHover = true;
   }
 
   return {
     view,
     place(display) {
       if (!edge) return null;
-      return expanded ? panelBounds(edge, anchor, display) : ballBounds(edge, anchor, display);
+      return expanded
+        ? panelBounds(edge, anchor, display)
+        : ballBounds(edge, anchor, display, !emerged);
     },
     restore(saved, display) {
       if (saved && (saved.edge === "left" || saved.edge === "right" || saved.edge === "top" || saved.edge === "bottom")) {
@@ -142,19 +165,31 @@ function createDockSession() {
       }
       return view();
     },
+    slideOut() {
+      if (!edge) return view();
+      suppressHover = false;
+      emerged = true;
+      expanded = false;
+      return view();
+    },
     hover() {
       if (!edge || suppressHover) return view();
-      expanded = true;
+      emerged = true;
+      expanded = false;
       return view();
     },
     leave() {
       suppressHover = false;
-      if (edge) expanded = false;
+      if (edge) {
+        expanded = false;
+        emerged = false;
+      }
       return view();
     },
     open() {
       if (!edge) return view();
       suppressHover = false;
+      emerged = true;
       expanded = true;
       return view();
     },
@@ -169,15 +204,17 @@ function createDockSession() {
       }
       return view();
     },
-    snap(bounds, display) {
-      const found = nearestEdge(bounds, display);
+    snap(bounds, display, pointer) {
+      const found = nearestEdge(bounds, display) || pointerEdge(pointer, display);
       if (found) {
-        park(found, anchorOnEdge(found, bounds));
+        const quiet = edge === found && !expanded && !emerged;
+        park(found, anchorOnEdge(found, bounds), quiet);
         return view();
       }
       if (edge) {
         edge = null;
         expanded = true;
+        emerged = false;
         suppressHover = false;
       }
       return view();
@@ -186,9 +223,10 @@ function createDockSession() {
       if (!edge || !point) return view();
       anchor = edge === "left" || edge === "right" ? point.y : point.x;
       expanded = false;
+      emerged = false;
       const area = workAreaOf(display);
       if (area) {
-        const parked = ballBounds(edge, anchor, display);
+        const parked = ballBounds(edge, anchor, display, true);
         anchor = edge === "left" || edge === "right" ? parked.y + parked.height / 2 : parked.x + parked.width / 2;
       }
       return view();
@@ -200,9 +238,11 @@ module.exports = {
   PANEL_WIDTH,
   PANEL_HEIGHT,
   BALL_SIZE,
+  BALL_PEEK,
   EDGE_PX,
   displayForBounds,
   nearestEdge,
+  pointerEdge,
   anchorOnEdge,
   ballBounds,
   panelBounds,
