@@ -1,5 +1,5 @@
 const PANEL_WIDTH = 360;
-let panelHeight = 446;
+let panelHeight = 489;
 const BALL_SIZE = 72;
 const BALL_PEEK = 20;
 const EDGE_PX = 128;

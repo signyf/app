@@ -362,6 +362,13 @@ html[data-dock="ball"][data-tuck="1"][data-edge="bottom"] .edge-ball {
   margin: 0;
 }
 
+#yi, #ji {
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: break-word;
+}
+
 .date-label {
   flex: 0 0 32px;
 }
