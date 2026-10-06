@@ -13,6 +13,7 @@
         <div id="place-name" class="place-name">未选择地点</div>
         <div id="place-detail" class="place-detail"></div>
       </div>
+      <button id="settings-toggle" class="text-button" type="button" aria-expanded="false" aria-controls="settings-surface">设置</button>
       <button id="close-button" class="close-button" type="button" aria-label="关闭">
         <svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true">
           <path d="M2.2 2.2 L9.8 9.8 M9.8 2.2 L2.2 9.8" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" />
@@ -55,6 +56,17 @@
 
       <p id="status" class="status" role="status"></p>
       <p class="credits">地点 © OpenStreetMap · 天气 Open-Meteo</p>
+
+      <div id="settings-surface" class="search-surface" role="dialog" aria-label="高德 Key" aria-hidden="true" inert>
+        <p class="settings-title">高德 Web 服务 Key</p>
+        <form id="settings-form" class="search-form">
+          <input id="amap-key-input" type="text" maxlength="200" placeholder="粘贴 Web 服务 Key" autocomplete="off" spellcheck="false" aria-label="高德 Web 服务 Key" />
+          <button id="settings-save" class="text-button search-submit" type="submit">保存</button>
+        </form>
+        <p id="settings-message" class="search-message" role="status"></p>
+        <p class="settings-hint">保存后，搜索街道和门牌会用这把 Key。它只写在这台电脑的应用数据里。</p>
+        <button id="settings-clear" class="text-button" type="button">清除</button>
+      </div>
 
       <div id="search-surface" class="search-surface" role="dialog" aria-label="搜索地点" aria-hidden="true" inert>
         <form id="search-form" class="search-form">

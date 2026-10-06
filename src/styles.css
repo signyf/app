@@ -98,7 +98,7 @@ button:disabled { cursor: default; }
   -webkit-app-region: drag;
 }
 
-button, input, .search-surface, .results, .result-item {
+button, input, .search-surface, .results, .result-item, .settings-hint {
   -webkit-app-region: no-drag;
   user-select: auto;
 }
@@ -333,6 +333,20 @@ button, input, .search-surface, .results, .result-item {
   visibility: hidden;
   pointer-events: none;
   transition: opacity var(--motion) var(--ease), transform var(--motion) var(--ease), visibility 0s linear var(--motion);
+}
+
+.settings-title {
+  margin: 0;
+  color: var(--text);
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.settings-hint {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 16px;
 }
 
 .search-surface.is-open {

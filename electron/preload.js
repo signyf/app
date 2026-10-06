@@ -13,5 +13,7 @@ contextBridge.exposeInMainWorld("widget", {
   saveLocation: (location) => ipcRenderer.invoke("location:save", location),
   searchPlaces: (query) => ipcRenderer.invoke("places:search", query),
   getWeather: (location) => ipcRenderer.invoke("weather:get", location),
+  getSettings: () => ipcRenderer.invoke("settings:get"),
+  saveSettings: (settings) => ipcRenderer.invoke("settings:save", settings),
   close: () => ipcRenderer.invoke("window:close"),
 });
